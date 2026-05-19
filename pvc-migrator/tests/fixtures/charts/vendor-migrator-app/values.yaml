@@ -1,0 +1,22 @@
+nameOverride: source
+arangodb:
+  enabled: true
+  image: arangodb:3.12
+  pvcName: arango-data
+vmstorage:
+  enabled: true
+  image: victoriametrics/vmstorage:latest
+  backupImage: victoriametrics/vmbackup:latest
+  claimName: data
+vmselect:
+  enabled: true
+  image: victoriametrics/vmselect:latest
+vminsert:
+  enabled: true
+  image: victoriametrics/vminsert:latest
+vmagent:
+  enabled: true
+  image: victoriametrics/vmagent:latest
+vmalert:
+  enabled: true
+  image: victoriametrics/vmalert:latest

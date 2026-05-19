@@ -1,0 +1,14 @@
+site_name: pvc-migrator
+site_description: Workload-aware Kubernetes PVC migration planner and executor
+theme:
+  name: mkdocs
+nav:
+  - Overview: index.md
+  - Getting Started: getting-started.md
+  - CLI Reference: cli.md
+  - Workload Guides: workloads.md
+  - Mapping Overrides: mapping-overrides.md
+  - Execution Safety: execution-safety.md
+  - Operations Runbooks: runbooks.md
+  - Architecture: architecture.md
+  - Testing: testing.md

@@ -1,0 +1,22 @@
+{{- if .Values.vmagent.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.nameOverride }}-vmagent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.nameOverride }}-vmagent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.nameOverride }}-vmagent
+    spec:
+      containers:
+        - name: vmagent
+          image: {{ .Values.vmagent.image }}
+          args:
+            - -httpListenAddr=:8429
+            - -remoteWrite.url=http://127.0.0.1:8428/api/v1/write
+{{- end }}

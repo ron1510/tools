@@ -1,0 +1,13 @@
+{
+  "run_id": "aebf880dd2c4",
+  "plan_summary": "src->dst",
+  "records": [
+    {
+      "workload_name": "db",
+      "command": "pv-migrate migrate",
+      "description": "copy",
+      "status": "completed",
+      "error": null
+    }
+  ]
+}

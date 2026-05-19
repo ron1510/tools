@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.2
+      - name: Install dependencies
+        run: python -m pip install -e .[dev]
+        working-directory: pvc-migrator
+      - name: Run unit and integration tests
+        run: pytest
+        working-directory: pvc-migrator
+      - name: Run mypy
+        run: mypy src
+        working-directory: pvc-migrator
+      - name: Build docs
+        run: mkdocs build --strict
+        working-directory: pvc-migrator

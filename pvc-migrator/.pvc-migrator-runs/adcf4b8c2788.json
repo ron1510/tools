@@ -1,0 +1,41 @@
+{
+  "run_id": "adcf4b8c2788",
+  "plan_summary": "vendor-flow-src-236a48->vendor-flow-dst-236a48",
+  "records": [
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-src-236a48 exec deployment/source-arangodb -- sh -lc \"rm -rf /tmp/pvc-migrator-dump && arangodump --server.endpoint tcp://127.0.0.1:8529 --server.authentication false --all-databases true --output-directory /tmp/pvc-migrator-dump && tar -C /tmp -cf /tmp/pvc-migrator-dump.tar pvc-migrator-dump\"",
+      "description": "Create ArangoDB dump inside source-arangodb",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-src-236a48 cp source-arangodb-$(kubectl --context kind-review-env-smoke -n vendor-flow-src-236a48 get pods -l app.kubernetes.io/name=source-arangodb -o jsonpath='{.items[0].metadata.name}'):/tmp/pvc-migrator-dump.tar .pvc-migrator-runs/arangodb-source-arangodb.tar",
+      "description": "Copy ArangoDB dump from source-arangodb to local artifact",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-dst-236a48 cp .pvc-migrator-runs/arangodb-source-arangodb.tar dest-arangodb-$(kubectl --context kind-review-env-smoke -n vendor-flow-dst-236a48 get pods -l app.kubernetes.io/name=dest-arangodb -o jsonpath='{.items[0].metadata.name}'):/tmp/pvc-migrator-dump.tar",
+      "description": "Copy local ArangoDB dump artifact into dest-arangodb",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-dst-236a48 exec deployment/dest-arangodb -- sh -lc \"rm -rf /tmp/pvc-migrator-dump && mkdir -p /tmp && tar -C /tmp -xf /tmp/pvc-migrator-dump.tar && arangorestore --server.endpoint tcp://127.0.0.1:8529 --server.authentication false --all-databases true --input-directory /tmp/pvc-migrator-dump --create-database true --overwrite true\"",
+      "description": "Restore ArangoDB dump into dest-arangodb",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-vmstorage",
+      "command": "kubectl exec statefulset/source-vmstorage -c vmbackup -- sh -lc \"rm -rf /vmbackup-data/latest /tmp/vmbackup-latest.tar && vmbackup-prod -storageDataPath=/vmstorage-data -snapshot.createURL=http://127.0.0.1:8482/snapshot/create -dst=fs:///vmbackup-data/latest && tar -C /vmbackup-data -cf /tmp/vmbackup-latest.tar latest\"",
+      "description": "Create vmbackup snapshot inside source-vmstorage",
+      "status": "failed",
+      "error": "Command '['kubectl', '--context', 'kind-review-env-smoke', '-n', 'vendor-flow-src-236a48', 'exec', 'pod/source-vmstorage-0', '-c', 'vmbackup', '--', 'sh', '-lc', 'rm -rf /vmbackup-data/latest /tmp/vmbackup-latest.tar && vmbackup-prod -storageDataPath=/vmstorage-data -snapshot.createURL=http://127.0.0.1:8482/snapshot/create -dst=fs:///vmbackup-data/latest && tar -C /vmbackup-data -cf /tmp/vmbackup-latest.tar latest']' returned non-zero exit status 127."
+    }
+  ]
+}

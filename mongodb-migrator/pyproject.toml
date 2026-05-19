@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mongodb-migrator"
+version = "0.1.0"
+description = "Copy and migrate MongoDB data sets across clusters and databases."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [
+  { name = "Ron" }
+]
+dependencies = [
+  "pydantic>=2.8,<3.0",
+  "PyYAML>=6.0,<7.0",
+  "pymongo>=4.8,<5.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0,<10.0",
+  "mypy",
+]
+
+[project.scripts]
+mongodb-migrator = "mongodb_migrator.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+  "integration: integration tests using real MongoDB endpoints",
+  "e2e: end-to-end tests that exercise the CLI against a real MongoDB runtime",
+]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["pymongo", "pymongo.*"]
+ignore_missing_imports = true

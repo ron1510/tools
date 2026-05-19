@@ -1,0 +1,90 @@
+{
+  "run_id": "ccacb0ffbdf6",
+  "plan_summary": "vendor-flow-src-c9ed5e->vendor-flow-dst-c9ed5e",
+  "records": [
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-src-c9ed5e exec deployment/source-arangodb -- sh -lc \"rm -rf /tmp/pvc-migrator-dump && arangodump --server.endpoint tcp://127.0.0.1:8529 --server.authentication false --all-databases true --output-directory /tmp/pvc-migrator-dump && tar -C /tmp -cf /tmp/pvc-migrator-dump.tar pvc-migrator-dump\"",
+      "description": "Create ArangoDB dump inside source-arangodb",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-src-c9ed5e cp source-arangodb-$(kubectl --context kind-review-env-smoke -n vendor-flow-src-c9ed5e get pods -l app.kubernetes.io/name=source-arangodb -o jsonpath='{.items[0].metadata.name}'):/tmp/pvc-migrator-dump.tar .pvc-migrator-runs/arangodb-source-arangodb.tar",
+      "description": "Copy ArangoDB dump from source-arangodb to local artifact",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-dst-c9ed5e cp .pvc-migrator-runs/arangodb-source-arangodb.tar dest-arangodb-$(kubectl --context kind-review-env-smoke -n vendor-flow-dst-c9ed5e get pods -l app.kubernetes.io/name=dest-arangodb -o jsonpath='{.items[0].metadata.name}'):/tmp/pvc-migrator-dump.tar",
+      "description": "Copy local ArangoDB dump artifact into dest-arangodb",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-dst-c9ed5e exec deployment/dest-arangodb -- sh -lc \"rm -rf /tmp/pvc-migrator-dump && mkdir -p /tmp && tar -C /tmp -xf /tmp/pvc-migrator-dump.tar && arangorestore --server.endpoint tcp://127.0.0.1:8529 --server.authentication false --all-databases true --input-directory /tmp/pvc-migrator-dump --create-database true --overwrite true\"",
+      "description": "Restore ArangoDB dump into dest-arangodb",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-vmstorage",
+      "command": "kubectl exec statefulset/source-vmstorage -c vmbackup -- sh -lc \"rm -rf /vmbackup-data/latest /tmp/vmbackup-latest.tar && rm -f /vmbackup-data/vmbackup-latest.tar && /vmbackup-prod -storageDataPath=/vmstorage-data -snapshot.createURL=http://127.0.0.1:8482/snapshot/create -dst=fs:///vmbackup-data/latest && tar -C /vmbackup-data -cf /vmbackup-data/vmbackup-latest.tar latest\"",
+      "description": "Create vmbackup snapshot inside source-vmstorage",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-vmstorage",
+      "command": "kubectl cp <source-vmbackup-pod>:/vmbackup-data/vmbackup-latest.tar .pvc-migrator-runs/source-vmstorage-vmbackup-latest.tar",
+      "description": "Copy vmbackup artifact from source-vmstorage to local run artifacts",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-vmstorage",
+      "command": "kubectl scale statefulset/dest-vmstorage --replicas=0",
+      "description": "Scale down destination StatefulSet dest-vmstorage",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-vmstorage",
+      "command": "create helper pod with victoriametrics/vmrestore, mount destination PVC, copy .pvc-migrator-runs/source-vmstorage-vmbackup-latest.tar, extract it, and run /vmrestore-prod -src=fs:///tmp/vmbackup/latest -storageDataPath=/vmstorage-data",
+      "description": "Restore backup into destination PVCs for dest-vmstorage",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-vmstorage",
+      "command": "create helper pod with victoriametrics/vmrestore, mount destination PVC, copy .pvc-migrator-runs/source-vmstorage-vmbackup-latest.tar, extract it, and run /vmrestore-prod -src=fs:///tmp/vmbackup/latest -storageDataPath=/vmstorage-data#copy",
+      "description": "Internal native step",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-vmstorage",
+      "command": "create helper pod with victoriametrics/vmrestore, mount destination PVC, copy .pvc-migrator-runs/source-vmstorage-vmbackup-latest.tar, extract it, and run /vmrestore-prod -src=fs:///tmp/vmbackup/latest -storageDataPath=/vmstorage-data#restore",
+      "description": "Internal native step",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-vmstorage",
+      "command": "create helper pod with victoriametrics/vmrestore, mount destination PVC, copy .pvc-migrator-runs/source-vmstorage-vmbackup-latest.tar, extract it, and run /vmrestore-prod -src=fs:///tmp/vmbackup/latest -storageDataPath=/vmstorage-data#cleanup",
+      "description": "Delete vmrestore helper pod",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-vmstorage",
+      "command": "kubectl scale statefulset/dest-vmstorage --replicas=1",
+      "description": "Scale destination StatefulSet dest-vmstorage back to 1",
+      "status": "completed",
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "run_id": "de6e6c671074",
+  "plan_summary": "vendor-flow-src-453ded->vendor-flow-dst-453ded",
+  "records": [
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-src-453ded exec deployment/source-arangodb -- sh -lc \"rm -rf /tmp/pvc-migrator-dump && arangodump --server.endpoint tcp://127.0.0.1:8529 --server.authentication false --all-databases true --output-directory /tmp/pvc-migrator-dump && tar -C /tmp -cf /tmp/pvc-migrator-dump.tar pvc-migrator-dump\"",
+      "description": "Create ArangoDB dump inside source-arangodb",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-src-453ded cp source-arangodb-$(kubectl --context kind-review-env-smoke -n vendor-flow-src-453ded get pods -l app.kubernetes.io/name=source-arangodb -o jsonpath='{.items[0].metadata.name}'):/tmp/pvc-migrator-dump.tar .pvc-migrator-runs/arangodb-source-arangodb.tar",
+      "description": "Copy ArangoDB dump from source-arangodb to local artifact",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-dst-453ded cp .pvc-migrator-runs/arangodb-source-arangodb.tar dest-arangodb-$(kubectl --context kind-review-env-smoke -n vendor-flow-dst-453ded get pods -l app.kubernetes.io/name=dest-arangodb -o jsonpath='{.items[0].metadata.name}'):/tmp/pvc-migrator-dump.tar",
+      "description": "Copy local ArangoDB dump artifact into dest-arangodb",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-dst-453ded exec deployment/dest-arangodb -- sh -lc \"rm -rf /tmp/pvc-migrator-dump && mkdir -p /tmp && tar -C /tmp -xf /tmp/pvc-migrator-dump.tar && arangorestore --server.endpoint tcp://127.0.0.1:8529 --server.authentication false --all-databases true --input-directory /tmp/pvc-migrator-dump --create-database true --overwrite true\"",
+      "description": "Restore ArangoDB dump into dest-arangodb",
+      "status": "completed",
+      "error": null
+    }
+  ]
+}
