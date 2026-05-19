@@ -1,0 +1,23 @@
+{{- if .Values.vminsert.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.nameOverride }}-vminsert
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.nameOverride }}-vminsert
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.nameOverride }}-vminsert
+    spec:
+      containers:
+        - name: vminsert
+          image: {{ .Values.vminsert.image }}
+          args:
+            - -storageNode={{ .Values.nameOverride }}-vmstorage:8400
+          ports:
+            - containerPort: 8480
+{{- end }}

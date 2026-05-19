@@ -1,0 +1,20 @@
+{{- if .Values.vmstorage.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.nameOverride }}-vmstorage
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: {{ .Values.nameOverride }}-vmstorage
+  ports:
+    - name: insert
+      port: 8400
+      targetPort: 8400
+    - name: select
+      port: 8401
+      targetPort: 8401
+    - name: http
+      port: 8482
+      targetPort: 8482
+{{- end }}

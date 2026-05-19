@@ -1,0 +1,13 @@
+{
+  "run_id": "8160d202aa91",
+  "plan_summary": "vendor-flow-src->vendor-flow-dst",
+  "records": [
+    {
+      "workload_name": "source-arangodb",
+      "command": "kubectl --context kind-review-env-smoke -n vendor-flow-src exec deployment/source-arangodb -- sh -lc \"rm -rf /tmp/pvc-migrator-dump && arangodump --server.endpoint tcp://127.0.0.1:8529 --server.authentication false --output-directory /tmp/pvc-migrator-dump && tar -C /tmp -cf - pvc-migrator-dump\" | kubectl --context kind-review-env-smoke -n vendor-flow-dst exec -i deployment/dest-arangodb -- sh -lc \"rm -rf /tmp/pvc-migrator-dump && mkdir -p /tmp && tar -C /tmp -xf - && arangorestore --server.endpoint tcp://127.0.0.1:8529 --server.authentication false --input-directory /tmp/pvc-migrator-dump --create-database true --overwrite true\"",
+      "description": "Stream ArangoDB dump from source-arangodb into dest-arangodb",
+      "status": "failed",
+      "error": "Command 'kubectl --context kind-review-env-smoke -n vendor-flow-src exec deployment/source-arangodb -- sh -lc \"rm -rf /tmp/pvc-migrator-dump && arangodump --server.endpoint tcp://127.0.0.1:8529 --server.authentication false --output-directory /tmp/pvc-migrator-dump && tar -C /tmp -cf - pvc-migrator-dump\" | kubectl --context kind-review-env-smoke -n vendor-flow-dst exec -i deployment/dest-arangodb -- sh -lc \"rm -rf /tmp/pvc-migrator-dump && mkdir -p /tmp && tar -C /tmp -xf - && arangorestore --server.endpoint tcp://127.0.0.1:8529 --server.authentication false --input-directory /tmp/pvc-migrator-dump --create-database true --overwrite true\"' returned non-zero exit status 1."
+    }
+  ]
+}

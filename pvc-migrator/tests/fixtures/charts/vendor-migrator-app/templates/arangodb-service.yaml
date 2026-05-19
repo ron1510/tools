@@ -1,0 +1,13 @@
+{{- if .Values.arangodb.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.nameOverride }}-arangodb
+spec:
+  selector:
+    app.kubernetes.io/name: {{ .Values.nameOverride }}-arangodb
+  ports:
+    - name: http
+      port: 8529
+      targetPort: 8529
+{{- end }}

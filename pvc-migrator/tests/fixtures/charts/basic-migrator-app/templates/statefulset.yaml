@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.nameOverride }}-{{ .Values.statefulset.nameSuffix }}
+  labels:
+    app.kubernetes.io/name: {{ .Values.nameOverride }}-{{ .Values.statefulset.nameSuffix }}
+spec:
+  serviceName: {{ .Values.nameOverride }}-{{ .Values.statefulset.nameSuffix }}
+  replicas: {{ .Values.statefulset.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.nameOverride }}-{{ .Values.statefulset.nameSuffix }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.nameOverride }}-{{ .Values.statefulset.nameSuffix }}
+    spec:
+      containers:
+        - name: app
+          image: busybox:1.36
+          command: ["sleep", "3600"]
+          volumeMounts:
+            - name: {{ .Values.statefulset.claimName }}
+              mountPath: /data
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ .Values.statefulset.claimName }}
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi

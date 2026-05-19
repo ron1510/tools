@@ -1,0 +1,21 @@
+{{- if .Values.vmalert.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.nameOverride }}-vmalert
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.nameOverride }}-vmalert
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.nameOverride }}-vmalert
+    spec:
+      containers:
+        - name: vmalert
+          image: {{ .Values.vmalert.image }}
+          args:
+            - -rule=/tmp/nonexistent-rules.yaml
+{{- end }}

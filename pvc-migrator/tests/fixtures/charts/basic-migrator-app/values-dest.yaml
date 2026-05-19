@@ -1,0 +1,11 @@
+nameOverride: dest
+statefulset:
+  nameSuffix: app-db
+  replicas: 2
+  claimName: data
+deployment:
+  enabled: true
+  nameSuffix: grafana
+  image: grafana/grafana:11.0.0
+plugins:
+  - grafana-clock-panel

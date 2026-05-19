@@ -1,0 +1,35 @@
+{{- if .Values.arangodb.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.nameOverride }}-arangodb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.nameOverride }}-arangodb
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.nameOverride }}-arangodb
+    spec:
+      containers:
+        - name: arangodb
+          image: {{ .Values.arangodb.image }}
+          env:
+            - name: ARANGO_NO_AUTH
+              value: "1"
+          ports:
+            - containerPort: 8529
+          volumeMounts:
+            - name: arango-data
+              mountPath: /var/lib/arangodb3
+            - name: arango-apps
+              mountPath: /var/lib/arangodb3-apps
+      volumes:
+        - name: arango-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.nameOverride }}-{{ .Values.arangodb.pvcName }}
+        - name: arango-apps
+          emptyDir: {}
+{{- end }}

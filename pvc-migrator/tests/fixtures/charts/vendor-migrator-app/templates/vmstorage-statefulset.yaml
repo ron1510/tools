@@ -1,0 +1,51 @@
+{{- if .Values.vmstorage.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Values.nameOverride }}-vmstorage
+spec:
+  serviceName: {{ .Values.nameOverride }}-vmstorage
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.nameOverride }}-vmstorage
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.nameOverride }}-vmstorage
+    spec:
+      containers:
+        - name: vmstorage
+          image: {{ .Values.vmstorage.image }}
+          args:
+            - -storageDataPath=/vmstorage-data
+          ports:
+            - containerPort: 8482
+            - containerPort: 8400
+            - containerPort: 8401
+          volumeMounts:
+            - name: {{ .Values.vmstorage.claimName }}
+              mountPath: /vmstorage-data
+            - name: vmbackup-data
+              mountPath: /vmbackup-data
+        - name: vmbackup
+          image: {{ .Values.vmstorage.backupImage }}
+          command: ["/bin/sh", "-c", "sleep infinity"]
+          volumeMounts:
+            - name: {{ .Values.vmstorage.claimName }}
+              mountPath: /vmstorage-data
+            - name: vmbackup-data
+              mountPath: /vmbackup-data
+      volumes:
+        - name: vmbackup-data
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: {{ .Values.vmstorage.claimName }}
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+{{- end }}

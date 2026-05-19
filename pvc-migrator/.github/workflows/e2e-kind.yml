@@ -1,0 +1,27 @@
+name: E2E Kind
+
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e-kind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.14.2
+      - name: Install kind
+        uses: helm/kind-action@v1.12.0
+        with:
+          cluster_name: review-env-smoke
+      - name: Install dependencies
+        run: python -m pip install -e .[dev]
+        working-directory: pvc-migrator
+      - name: Run e2e smoke tests
+        run: pytest -m e2e
+        working-directory: pvc-migrator

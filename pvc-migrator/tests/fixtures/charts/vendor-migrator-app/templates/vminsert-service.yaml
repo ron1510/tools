@@ -1,0 +1,13 @@
+{{- if .Values.vminsert.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.nameOverride }}-vminsert
+spec:
+  selector:
+    app.kubernetes.io/name: {{ .Values.nameOverride }}-vminsert
+  ports:
+    - name: http
+      port: 8480
+      targetPort: 8480
+{{- end }}

@@ -1,0 +1,23 @@
+{{- if .Values.vmselect.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.nameOverride }}-vmselect
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Values.nameOverride }}-vmselect
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Values.nameOverride }}-vmselect
+    spec:
+      containers:
+        - name: vmselect
+          image: {{ .Values.vmselect.image }}
+          args:
+            - -storageNode={{ .Values.nameOverride }}-vmstorage:8401
+          ports:
+            - containerPort: 8481
+{{- end }}

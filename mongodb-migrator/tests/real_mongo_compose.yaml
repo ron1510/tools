@@ -1,0 +1,26 @@
+services:
+  source-mongo:
+    image: mongo:7.0
+    container_name: mongodb-migrator-source
+    ports:
+      - "37017:27017"
+    command: ["mongod", "--bind_ip_all"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  target-mongo:
+    image: mongo:7.0
+    container_name: mongodb-migrator-target
+    ports:
+      - "37018:27017"
+    command: ["mongod", "--bind_ip_all"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ ping: 1 })"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s

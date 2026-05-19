@@ -1,0 +1,13 @@
+{{- if .Values.vmselect.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.nameOverride }}-vmselect
+spec:
+  selector:
+    app.kubernetes.io/name: {{ .Values.nameOverride }}-vmselect
+  ports:
+    - name: http
+      port: 8481
+      targetPort: 8481
+{{- end }}
