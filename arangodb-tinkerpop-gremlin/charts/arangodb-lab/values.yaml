@@ -1,0 +1,41 @@
+image:
+  repository: arangodb
+  tag: 3.12.9.1
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8529
+
+auth:
+  createSecret: true
+  existingSecret: ""
+  rootPassword: change-me
+  passwordKey: root-password
+
+persistence:
+  enabled: false
+  size: 4Gi
+  storageClassName: ""
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+podSecurityContext:
+  fsGroup: 999
+
+securityContext:
+  runAsUser: 999
+  runAsGroup: 999
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+nameOverride: ""
+fullnameOverride: ""

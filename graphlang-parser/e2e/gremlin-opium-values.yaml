@@ -1,0 +1,21 @@
+image:
+  repository: gremlin-arangodb-poc
+  tag: local
+  pullPolicy: IfNotPresent
+
+arangodb:
+  host: arangodb-lab.gremlin-lab.svc.cluster.local
+  port: 8529
+  database: my_db
+  graph: my_graph
+  graphType: COMPLEX
+  enableDataDefinition: false
+  auth:
+    username: root
+    password: change-me
+  edgeDefinitions:
+    # The current lab chart renders only the first list item inside
+    # edgeDefinitions: [${ARANGO_EDGE_DEFINITIONS_YAML}]. Keep both relations
+    # in one preformatted value so the rendered provider config receives two
+    # COMPLEX graph edge definitions.
+    - 'users-data-product.user_role_subscriptions:[users-data-product.user_roles]->[users-data-product.user_roles]","veto-data-product.role_abilities:[users-data-product.user_roles]->[veto-data-product.abilities]'

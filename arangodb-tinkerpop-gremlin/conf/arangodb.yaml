@@ -1,0 +1,16 @@
+gremlin:
+  graph: "com.arangodb.tinkerpop.gremlin.structure.ArangoDBGraph"
+  arangodb:
+    conf:
+      graph:
+        db: "${ARANGO_DATABASE}"
+        name: "${ARANGO_GRAPH}"
+        type: ${ARANGO_GRAPH_TYPE}
+        enableDataDefinition: ${ARANGO_ENABLE_DATA_DEFINITION}
+        orphanCollections: [${ARANGO_ORPHAN_COLLECTIONS_YAML}]
+        edgeDefinitions: [${ARANGO_EDGE_DEFINITIONS_YAML}]
+      driver:
+        user: "${ARANGO_USER}"
+        password: "${ARANGO_PASSWORD}"
+        hosts:
+          - "${ARANGO_HOST}:${ARANGO_PORT}"

@@ -1,0 +1,55 @@
+start: expr
+
+?expr: comparison
+
+?comparison: chain
+    | chain COMP_OP chain -> binary_expr
+
+?chain: atom trailer* -> chain
+
+?atom: call
+    | literal
+    | list_expr
+    | dict_expr
+    | NAME -> name_expr
+    | "(" expr ")"
+
+call: NAME call_args
+
+call_args: "(" [arguments] ")"
+arguments: argument ("," argument)* ","?
+?argument: kwarg
+    | expr
+kwarg: NAME "=" expr
+
+trailer: "." NAME call_args -> method_trailer
+    | "[" subscript_field "]" -> subscript_trailer
+
+?subscript_field: STRING -> string_field
+    | NAME -> identifier_field
+
+?literal: STRING -> string_expr
+    | SIGNED_NUMBER -> number_expr
+    | "True" -> true_expr
+    | "False" -> false_expr
+    | "None" -> null_expr
+    | "null" -> null_expr
+
+list_expr: "[" [expr_list] "]"
+expr_list: expr ("," expr)* ","?
+
+dict_expr: "{" [dict_items] "}"
+dict_items: dict_item ("," dict_item)* ","?
+dict_item: dict_key ":" expr
+?dict_key: STRING -> string_key
+    | NAME -> identifier_key
+
+COMP_OP: "==" | "!=" | "<=" | ">=" | "<" | ">"
+STRING: /'([^'\\]|\\.)*'/ | /"([^"\\]|\\.)*"/
+
+%import common.CNAME -> NAME
+%import common.SIGNED_NUMBER
+%import common.WS
+%ignore WS
+%ignore /#[^\n]*/
+

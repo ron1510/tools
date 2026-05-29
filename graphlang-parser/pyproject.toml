@@ -1,0 +1,38 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "opium-parser"
+version = "0.1.0"
+description = "Parser and typed AST for documented Opium query expressions."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "lark>=1.1.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.4",
+]
+e2e = [
+    "gremlinpython==3.8.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["opium_parser"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "e2e: tests that require a running ArangoDB TinkerPop Gremlin Server",
+]

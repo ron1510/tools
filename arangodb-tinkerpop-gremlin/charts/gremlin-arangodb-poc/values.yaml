@@ -1,0 +1,55 @@
+image:
+  repository: gremlin-arangodb-poc
+  tag: local
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8182
+
+gremlin:
+  traversalSource: g
+  logLevel: INFO
+
+arangodb:
+  host: arangodb.default.svc.cluster.local
+  port: 8529
+  database: my_db
+  graph: my_graph
+  orphanCollections: []
+  edgeDefinitions:
+    - depends_on:[services]->[services]
+  graphType: COMPLEX
+  enableDataDefinition: false
+  auth:
+    createSecret: true
+    existingSecret: ""
+    username: root
+    password: change-me
+    usernameKey: username
+    passwordKey: password
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: false
+
+nameOverride: ""
+fullnameOverride: ""
