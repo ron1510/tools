@@ -119,10 +119,14 @@ Current assumptions and limitations:
 - resources compile as `hasLabel(...)`
 - Arango `_key` is compiled through Gremlin `id()` because the TinkerPop
   provider exposes document ids as `collection/key`, not as a normal `_key`
-  property
+  property; field projection returns maps such as `{"_key": "admin"}`
+- float literals are rendered as Java double literals, for example `90.0d`,
+  because this ArangoDB provider rejects Groovy `BigDecimal` predicate values
 - `regex_matches(...)` compiles with `TextP.regex(...)`
-- traversal depths other than the simple default depth of `1` are parsed but not
-  compiled yet
+- traversal depths with `min_depth` / `max_depth` are compiled for the current
+  edge-first traversal model
+- complex `assign`, computed `select` columns, and match operands based on
+  variables or subqueries still need semantic completion
 - Gremlin strings are rendered only; they are never executed by this package
 
 ## ArangoDB / Gremlin E2E Tests
@@ -151,7 +155,7 @@ Run the live tests:
 python -m pip install -e ".[e2e]"
 $env:OPIUM_RUN_E2E='1'
 $env:GREMLIN_URI='ws://localhost:8182/gremlin'
-python -m pytest tests\test_e2e_gremlin_arangodb.py -q
+python -m pytest tests\e2e -q
 ```
 
 ## Parsing vs Compilation
@@ -166,3 +170,8 @@ blocked at compilation until its Gremlin behavior is explicit.
 - [Architecture](docs/ARCHITECTURE.md)
 - [Compiler coverage and readiness](docs/COMPILER_COVERAGE.md)
 - [ArangoDB Gremlin e2e lab](docs/E2E_LAB.md)
+- [Opium semantics](docs/OPIUM_SEMANTICS.md)
+- [Implementation decisions](docs/IMPLEMENTATION_DECISIONS.md)
+- [Testing strategy](docs/TESTING_STRATEGY.md)
+- [Learning roadmap](docs/LEARNING_ROADMAP.md)
+- [Questions for compiler completion](docs/QUESTIONS_FOR_COMPILER_COMPLETION.md)

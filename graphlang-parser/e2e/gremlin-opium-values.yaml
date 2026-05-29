@@ -15,7 +15,7 @@ arangodb:
     password: change-me
   edgeDefinitions:
     # The current lab chart renders only the first list item inside
-    # edgeDefinitions: [${ARANGO_EDGE_DEFINITIONS_YAML}]. Keep both relations
-    # in one preformatted value so the rendered provider config receives two
+    # edgeDefinitions: [${ARANGO_EDGE_DEFINITIONS_YAML}]. Keep all relations in
+    # one preformatted value so the rendered provider config receives all
     # COMPLEX graph edge definitions.
-    - 'users-data-product.user_role_subscriptions:[users-data-product.user_roles]->[users-data-product.user_roles]","veto-data-product.role_abilities:[users-data-product.user_roles]->[veto-data-product.abilities]'
+    - 'users-data-product.user_role_subscriptions:[users-data-product.user_roles]->[users-data-product.user_roles]","veto-data-product.role_abilities:[users-data-product.user_roles]->[veto-data-product.abilities]","org-data-product.user_memberships:[users-data-product.users]->[org-data-product.teams]","org-data-product.team_hierarchy:[org-data-product.teams]->[org-data-product.teams]'

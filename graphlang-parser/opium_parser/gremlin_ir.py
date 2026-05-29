@@ -5,6 +5,15 @@ from dataclasses import dataclass, field
 
 @dataclass
 class GremlinTraversal:
+    """Small string-building IR for Gremlin Groovy traversals.
+
+    This is deliberately not a complete Gremlin AST. At this stage the compiler
+    emits Gremlin Groovy strings, and most decisions are linear traversal steps.
+    Keeping a tiny append-only object makes the compiler easier to read while
+    preserving an obvious future replacement point for Gremlin Python bytecode or
+    a richer internal IR.
+    """
+
     start: str
     steps: list[str] = field(default_factory=list)
 
@@ -16,4 +25,3 @@ class GremlinTraversal:
 
     def render(self) -> str:
         return "".join([self.start, *self.steps])
-

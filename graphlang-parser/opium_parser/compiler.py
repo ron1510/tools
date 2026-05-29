@@ -1,3 +1,22 @@
+"""Opium AST to Gremlin Groovy compiler.
+
+This module is the semantic boundary of the project. The parser preserves what
+the user wrote; the compiler decides which supported Opium expressions can be
+translated into Gremlin for the current ArangoDB TinkerPop Provider setup.
+
+Current target:
+
+- Gremlin Groovy strings, not Gremlin Python bytecode.
+- ArangoDB TinkerPop Provider in `COMPLEX` mode.
+- Arango vertex and edge collections exposed as Gremlin labels.
+- Arango document ids exposed by the provider as `collection/key`.
+
+The implementation is intentionally conservative. When semantics are not clear
+or not validated live, the compiler raises a custom compiler error instead of
+guessing. That keeps parser coverage ahead of compiler coverage without silently
+creating wrong Gremlin.
+"""
+
 from __future__ import annotations
 
 from opium_parser.ast_nodes import (
@@ -29,21 +48,58 @@ from opium_parser.parser import parse_opium
 
 
 def compile_opium_to_gremlin(source: str) -> str:
+    """Parse an Opium expression and compile it into a Gremlin Groovy string."""
+
     return compile_ast_to_gremlin(parse_opium(source))
 
 
 def compile_ast_to_gremlin(query: Query) -> str:
+    """Compile a typed Opium AST into a Gremlin Groovy string."""
+
     return _Compiler().compile_query(query)
 
 
 class _Compiler:
+    """Recursive compiler for traversal-shaped Opium expressions.
+
+    The compiler walks from the root expression down through receivers, then
+    appends Gremlin steps as it unwinds. That mirrors how a chained Opium query
+    is read:
+
+    `get('roles').traverse_out('edges').into('roles')`
+
+    becomes:
+
+    `g.V().hasLabel('roles').outE('edges').otherV().hasLabel('roles')`
+
+    Child subqueries use the anonymous traversal source `__` instead of `g`.
+    """
+
     def compile_query(self, query: Query) -> str:
         return self._compile_traversal(query.root, child=False).render()
 
     def _compile_traversal(self, expr: Expr, *, child: bool) -> GremlinTraversal:
+        """Compile an expression that should behave as a traversal.
+
+        `child=True` means the expression is nested inside another traversal,
+        for example `array(traverse().into())`. In that mode we start from `__`
+        where possible so Gremlin treats the generated traversal as local to the
+        current traverser.
+        """
+
         if isinstance(expr, CallExpr):
             return self._compile_call(expr, child=child)
         if isinstance(expr, MethodCallExpr):
+            # Deep traversal followed by `into()` needs special handling because
+            # the repeat body must move edge -> vertex on every hop. Compiling
+            # `.traverse(max_depth=3)` first would leave the traversal on edges,
+            # which is correct only when `into()` is not present.
+            if expr.method == "into" and _is_deep_traverse_expr(expr.receiver):
+                traversal = self._compile_traversal(
+                    _traverse_receiver(expr.receiver), child=child
+                )
+                self._apply_deep_traverse_into(traversal, expr.receiver, expr)
+                return traversal
             traversal = self._compile_traversal(expr.receiver, child=child)
             self._apply_method(traversal, expr)
             return traversal
@@ -56,8 +112,15 @@ class _Compiler:
         raise UnsupportedOpiumCompilationError(msg)
 
     def _compile_call(self, call: CallExpr, *, child: bool) -> GremlinTraversal:
+        if call.function == "traverse_start":
+            return GremlinTraversal("__" if child else "g.V()")
+
         if call.function == "get":
             if child:
+                # `get(...)` inside a local child traversal would restart from
+                # the whole graph rather than the current traverser. Opium may
+                # eventually define that behavior, but it is not part of the
+                # validated subset.
                 msg = "get(...) is only supported as a root traversal for now"
                 raise UnsupportedOpiumCompilationError(msg)
             labels = _string_args(call)
@@ -65,6 +128,10 @@ class _Compiler:
                 msg = "get(...) requires at least one resource"
                 raise InvalidOpiumSemanticError(msg)
             traversal = GremlinTraversal("g.V()")
+            # In the agreed Arango/Gremlin setup, Opium resource names are
+            # Arango collection names and the provider exposes collections as
+            # Gremlin labels. This is why `get('collection')` compiles to
+            # `g.V().hasLabel('collection')`.
             traversal.add(f".hasLabel({render_label_args(labels)})")
             if "_key" in call.kwargs:
                 traversal.add(_compile_key_filter(call.kwargs["_key"]))
@@ -72,16 +139,27 @@ class _Compiler:
             return traversal
 
         if call.function in {"traverse", "traverse_any", "traverse_out", "traverse_in"}:
+            # Top-level `traverse(...)` is syntactically valid Opium, but as a
+            # Gremlin traversal it needs a starting point. We use `g.V()` at the
+            # top level and `__` for child traversals, matching the parser's
+            # policy of allowing syntax before all semantic combinations are
+            # necessarily recommended.
             traversal = GremlinTraversal("__" if child else "g.V()")
             self._apply_traverse(traversal, call)
             return traversal
 
         if call.function == "into":
+            # Standalone `into()` starts from edges. In normal use it is chained
+            # after `traverse`, but accepting it here keeps the compiler behavior
+            # consistent with the parser's allowed top-level call names.
             traversal = GremlinTraversal("__" if child else "g.E()")
             self._apply_into(traversal, call)
             return traversal
 
         if call.function == "var":
+            # `var('x')` compiles to Gremlin `select('x')`. Whether a label `x`
+            # is actually in scope depends on the surrounding query and is not
+            # fully validated by this compiler yet.
             name = _single_string_arg(call, "var")
             return GremlinTraversal(f"select({quote_groovy(name)})")
 
@@ -110,10 +188,17 @@ class _Compiler:
         elif method in {"match", "match_all", "match_any"}:
             self._apply_match(traversal, call)
         elif method == "array":
+            # Current interpretation: `array(subquery)` runs a local child
+            # traversal for each incoming traverser and folds its results into a
+            # list. This covers the simple documented shapes, but nested/scoped
+            # array behavior is still marked as incomplete in docs and tests.
             subquery = _single_expr_arg(call, "array")
             child = self._compile_traversal(subquery, child=True).render()
             traversal.add(f".local({child}).fold()")
         elif method == "flatten":
+            # `flatten()` is represented as one `unfold()`. `flatten(depth=N)`
+            # repeats `unfold()` N times. This is a simple Gremlin mapping, not a
+            # complete commitment about every nested Opium array shape.
             depth = _optional_int_kwarg(call, "depth", default=1)
             _reject_positional(call, "flatten")
             traversal.extend([".unfold()" for _ in range(depth)])
@@ -135,17 +220,39 @@ class _Compiler:
         _reject_unknown_kwargs(call, {"min_depth", "max_depth", "direction"})
 
         if min_depth != 1 or max_depth != 1:
-            msg = "Traversal depth other than 1 is not compiled yet"
-            raise UnsupportedOpiumCompilationError(msg)
+            # Deep traversal has to remember the edge taken at each hop because
+            # Opium `traverse(...)` returns edges, while `traverse(...).into()`
+            # returns vertices. The repeat body therefore labels each edge as
+            # `opium_edge` before moving to the adjacent vertex.
+            traversal.add(_compile_deep_traverse_step(call, into=False))
+            return
 
+        # Default traversal returns edges. `into()` is a separate Opium step that
+        # converts those edges to the opposite endpoint vertex.
         step = {"any": "bothE", "outbound": "outE", "inbound": "inE"}[direction]
         traversal.add(f".{step}({render_label_args(labels)})")
+
+    def _apply_deep_traverse_into(
+        self,
+        traversal: GremlinTraversal,
+        traverse_call: CallExpr | MethodCallExpr,
+        into_call: MethodCallExpr,
+    ) -> None:
+        traversal.add(_compile_deep_traverse_step(traverse_call, into=True))
+        _reject_unknown_kwargs(into_call, set())
+        labels = _string_args(into_call)
+        if labels:
+            traversal.add(f".hasLabel({render_label_args(labels)})")
 
     def _apply_into(
         self, traversal: GremlinTraversal, call: CallExpr | MethodCallExpr
     ) -> None:
         _reject_unknown_kwargs(call, set())
         labels = _string_args(call)
+        # `otherV()` means "the vertex on the other side of the current edge".
+        # This matches Opium's edge-first traversal model better than compiling
+        # traversal directly as `out()`/`in()`, because callers can project edge
+        # documents before deciding to move into vertices.
         traversal.add(".otherV()")
         if labels:
             traversal.add(f".hasLabel({render_label_args(labels)})")
@@ -159,9 +266,15 @@ class _Compiler:
             return
 
         if call.method in {"match", "match_all"}:
+            # `match` and `match_all` are currently equivalent: every condition
+            # is appended as another Gremlin filter step, so they combine with
+            # logical AND.
             traversal.extend(conditions)
             return
 
+        # Gremlin `or(...)` expects anonymous traversals. Each compiled condition
+        # starts with a dot, for example `.has(...)`, so prefixing `__` yields
+        # valid children such as `__.has(...)`.
         anonymous = [f"__{condition}" for condition in conditions]
         traversal.add(f".or({', '.join(anonymous)})")
 
@@ -174,6 +287,10 @@ class _Compiler:
             msg = "assign(...) var_name must be a string literal"
             raise InvalidOpiumSemanticError(msg)
         child = self._compile_traversal(subquery, child=True).render()
+        # This is a first-pass implementation. It stores a folded child result
+        # under a Gremlin label using `sideEffect`. The exact Opium semantics for
+        # per-row assignment and later computed projection still need review, so
+        # e2e tests keep complex assign/select cases skipped for now.
         traversal.add(
             f".sideEffect({child}.fold().as({quote_groovy(var_name_expr.value)}))"
         )
@@ -186,6 +303,9 @@ class _Compiler:
             raise InvalidOpiumSemanticError(msg)
 
         names = [*columns, *(name for name, _expr in computed)]
+        # `select(...)` returns a map/document shape. Gremlin `project(...).by(...)`
+        # matches that shape directly and makes missing property behavior
+        # explicit through `_compile_by_projection`.
         traversal.add(f".project({render_label_args(names)})")
 
         for column in columns:
@@ -194,6 +314,8 @@ class _Compiler:
             traversal.add(f".by({self._compile_projection_expr(expr)})")
 
     def _compile_projection_expr(self, expr: Expr) -> str:
+        """Compile expressions allowed in computed `select` columns."""
+
         if isinstance(expr, CallExpr) and expr.function == "var":
             return f"select({quote_groovy(_single_string_arg(expr, 'var'))})"
         if isinstance(expr, SubscriptExpr):
@@ -216,6 +338,13 @@ class _Compiler:
         raise UnsupportedOpiumCompilationError(msg)
 
     def _compile_condition_call(self, call: CallExpr) -> str:
+        """Compile function-style match conditions.
+
+        Supported operands are field names and literal values. Parsed conditions
+        involving subqueries or variables are intentionally rejected elsewhere
+        until their Opium semantics are settled.
+        """
+
         if call.function in {"match", "match_all", "match_any"}:
             conditions = [
                 *_keyword_conditions(call.kwargs),
@@ -251,6 +380,9 @@ class _Compiler:
             return f".has({quote_groovy(field)}, {render_within('without', value)})"
         if call.function == "is_null":
             field = _single_field_arg(call, "is_null")
+            # Arango documents usually omit missing values rather than storing
+            # explicit nulls for every absent field. Current Opium semantics use
+            # "property is not present" as the live-tested null check behavior.
             return f".not(__.has({quote_groovy(field)}))"
         if call.function == "regex_matches":
             return self._compile_regex(call)
@@ -273,6 +405,9 @@ class _Compiler:
             case_insensitive = value.value
         _reject_unknown_kwargs(call, {"caseInsensitive"})
         if case_insensitive and not regex.startswith("(?i)"):
+            # Gremlin TextP.regex accepts Java regex syntax. Prefixing `(?i)` is
+            # the least invasive way to implement Opium's `caseInsensitive`
+            # option while leaving already-prefixed patterns unchanged.
             regex = f"(?i){regex}"
         return f".has({quote_groovy(field)}, TextP.regex({quote_groovy(regex)}))"
 
@@ -284,6 +419,9 @@ def _string_args(call: CallExpr | MethodCallExpr) -> list[str]:
 
 def _compile_binary_condition(field: str, expr: BinaryOpExpr) -> str:
     if field == "_key":
+        # `_key` is not exposed as a normal provider property in the lab. It is
+        # derived from the document id suffix, so only equality-style comparisons
+        # are currently supported.
         if expr.op == "==":
             return _compile_key_filter(expr.right)
         if expr.op == "!=":
@@ -428,21 +566,44 @@ def _ensure_list(expr: Expr) -> ListExpr:
 
 
 def _compile_projection_step(field: str) -> str:
-    if field == "_key":
-        return ".id().map{it.get().substring(it.get().lastIndexOf('/') + 1)}"
-    return f".values({quote_groovy(field)})"
+    # Subscript projection returns a one-field map, not a raw scalar. This keeps
+    # `get('roles')['_key']` consistent with `select('_key')` and with the
+    # project/document semantics recorded in the Opium semantics notes.
+    return f".project({quote_groovy(field)}).by({_compile_by_projection(field)})"
 
 
 def _compile_by_projection(field: str) -> str:
     if field == "_key":
+        # Provider ids look like `collection/key`. Opium `_key` is only the key
+        # suffix, so this Groovy closure strips everything through the final
+        # slash. This is provider-specific and should be revisited when moving to
+        # Gremlin Python bytecode.
         return "__.id().map{it.get().substring(it.get().lastIndexOf('/') + 1)}"
-    return quote_groovy(field)
+    if field == "_id":
+        # Opium `_id` is the full Arango id, which the provider exposes as the
+        # Gremlin element id in the tested COMPLEX setup.
+        return "__.id()"
+    if field == "_from":
+        # The provider did not expose `_from` as a normal edge property in the
+        # live lab. For edge traversers, `outV().id()` reconstructs the Arango
+        # source id.
+        return "__.outV().id()"
+    if field == "_to":
+        # Same reasoning as `_from`: reconstruct the target endpoint from the
+        # edge's adjacent vertex instead of relying on `values('_to')`.
+        return "__.inV().id()"
+    # Missing properties are projected as explicit nulls so result maps have a
+    # stable shape. Gremlin `values(field)` would otherwise drop the traverser.
+    return f"coalesce(values({quote_groovy(field)}), constant(null))"
 
 
 def _compile_key_filter(value: Expr) -> str:
     if not isinstance(value, StringExpr):
         msg = "_key filters require a string literal"
         raise InvalidOpiumSemanticError(msg)
+    # Because provider ids are `collection/key`, filtering by Opium `_key` uses
+    # a suffix match. This assumes keys cannot contain collection separators in a
+    # way that would make `/key` ambiguous.
     key_suffix = quote_groovy(f"/{value.value}")
     return f".hasId(TextP.endingWith({key_suffix}))"
 
@@ -451,9 +612,79 @@ def _compile_key_membership(value: Expr, *, negate: bool) -> str:
     items = _ensure_list(value).items
     filters = [f"__{_compile_key_filter(item)}" for item in items]
     if not filters:
+        # Empty positive membership can match nothing. Empty negative membership
+        # should match everything, represented as "not impossible".
         return ".not(__.identity())" if negate else ".filter(__.none())"
 
     joined = ", ".join(filters)
     if negate:
         return f".not(__.or({joined}))"
     return f".or({joined})"
+
+
+def _is_deep_traverse_expr(expr: Expr) -> bool:
+    if isinstance(expr, CallExpr) and expr.function in _TRAVERSE_NAMES:
+        return _has_non_default_depth(expr)
+    if isinstance(expr, MethodCallExpr) and expr.method in _TRAVERSE_NAMES:
+        return _has_non_default_depth(expr)
+    return False
+
+
+def _traverse_receiver(expr: Expr) -> Expr:
+    if isinstance(expr, MethodCallExpr):
+        return expr.receiver
+    if isinstance(expr, CallExpr):
+        # Child subqueries such as `traverse(max_depth=2).into()` start from
+        # `__`. We create an internal sentinel call rather than exposing a public
+        # AST node just for this compiler implementation detail.
+        return CallExpr(function="traverse_start", args=[], kwargs={})
+    msg = "Expected traverse expression"
+    raise InvalidOpiumSemanticError(msg)
+
+
+def _has_non_default_depth(call: CallExpr | MethodCallExpr) -> bool:
+    return (
+        _optional_int_kwarg(call, "min_depth", default=1) != 1
+        or _optional_int_kwarg(call, "max_depth", default=1) != 1
+    )
+
+
+def _compile_deep_traverse_step(
+    call: CallExpr | MethodCallExpr, *, into: bool
+) -> str:
+    _reject_unknown_kwargs(call, {"min_depth", "max_depth", "direction"})
+    min_depth = _optional_int_kwarg(call, "min_depth", default=1)
+    max_depth = _optional_int_kwarg(call, "max_depth", default=1)
+    if min_depth < 1 or max_depth < min_depth:
+        msg = "traverse depth requires 1 <= min_depth <= max_depth"
+        raise InvalidOpiumSemanticError(msg)
+
+    repeat_body = _compile_deep_repeat_body(call)
+    # `emit()` includes intermediate depths. For min_depth > 1, Gremlin's
+    # `loops()` counter lets us suppress shallower hops while still repeating
+    # through them to reach deeper results.
+    emit = ".emit()" if min_depth == 1 else f".emit(loops().is(P.gte({min_depth})))"
+    step = f".repeat({repeat_body}){emit}.times({max_depth})"
+    if into:
+        # When `into()` is present, the repeat body has already moved from each
+        # edge to the next vertex, so emitted traversers are vertices.
+        return step
+    # Without `into()`, Opium traversal returns edge documents. The repeat body
+    # labels the edge before moving to the next vertex, then we select that edge
+    # back out for the result stream.
+    return f"{step}.select('opium_edge')"
+
+
+def _compile_deep_repeat_body(call: CallExpr | MethodCallExpr) -> str:
+    labels = render_label_args(_string_args(call))
+    direction = _direction(call)
+    if direction == "outbound":
+        return f"outE({labels}).as('opium_edge').inV()"
+    if direction == "inbound":
+        return f"inE({labels}).as('opium_edge').outV()"
+    return f"bothE({labels}).as('opium_edge').otherV()"
+
+
+_TRAVERSE_NAMES = frozenset(
+    {"traverse", "traverse_any", "traverse_out", "traverse_in"}
+)

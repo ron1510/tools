@@ -26,6 +26,16 @@ from opium_parser.errors import (
     UnsupportedOpiumSyntaxError,
 )
 
+# Function/method allow-list for the Opium grammar.
+#
+# The grammar can recognize generic `NAME(...)` calls, but this transformer
+# narrows them to documented Opium names. This is where we reject expressions
+# like `open(...)`, `lambda`, or random helper calls before they can reach a
+# compiler.
+#
+# The allow-list is parser-level, not compiler-level: a name can be valid Opium
+# syntax even if the current Gremlin compiler still rejects some semantic
+# shapes.
 ALLOWED_CALL_NAMES = frozenset(
     {
         "get",
@@ -63,12 +73,16 @@ ALLOWED_CALL_NAMES = frozenset(
 
 @dataclass(frozen=True)
 class _KeywordArg:
+    """Temporary transformer value for a parsed keyword argument."""
+
     name: str
     value: Expr
 
 
 @dataclass(frozen=True)
 class _MethodTrailer:
+    """Temporary transformer value for `.method(...)` before receiver binding."""
+
     method: str
     args: list[Expr]
     kwargs: dict[str, Expr]
@@ -76,10 +90,21 @@ class _MethodTrailer:
 
 @dataclass(frozen=True)
 class _SubscriptTrailer:
+    """Temporary transformer value for `[field]` before receiver binding."""
+
     field: str
 
 
 class OpiumTransformer(Transformer[Any, Query | Expr]):
+    """Convert Lark parse trees into the typed Opium AST.
+
+    Lark first parses a chain as one atom plus a list of trailers. The
+    transformer then folds those trailers left-to-right so
+    `get('x').limit(1)['_key']` becomes:
+
+    `SubscriptExpr(MethodCallExpr(CallExpr(...), "limit", ...), "_key")`.
+    """
+
     def start(self, children: list[Any]) -> Query:
         return Query(root=children[0])
 
@@ -119,6 +144,9 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
 
         for child in children:
             if isinstance(child, _KeywordArg):
+                # Python-style argument ordering is part of the documented Opium
+                # syntax, but we enforce it ourselves so duplicate and
+                # positional-after-keyword errors become custom Opium errors.
                 seen_keyword = True
                 if child.name in kwargs:
                     msg = f"Duplicate keyword argument: {child.name}"
@@ -213,9 +241,15 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
 
 
 def _decode_string(token: Token) -> str:
+    """Decode a grammar-approved string literal.
+
+    `ast.literal_eval` is used only after the Lark grammar has matched a single
+    string token. This gives correct escape handling for both `'...'` and
+    `"..."` without executing arbitrary code.
+    """
+
     value = ast.literal_eval(str(token))
     if not isinstance(value, str):
         msg = f"Expected string literal, got {token}"
         raise InvalidOpiumExpressionError(msg)
     return value
-

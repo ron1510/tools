@@ -26,6 +26,13 @@ def test_compile_match_binary_comparison():
     )
 
 
+def test_compile_float_literals_as_java_doubles():
+    assert (
+        compile_opium_to_gremlin("get('users').match(score >= 90.0)")
+        == "g.V().hasLabel('users').has('score', P.gte(90.0d))"
+    )
+
+
 def test_compile_match_any():
     assert (
         compile_opium_to_gremlin("get('users').match_any(_key='one', name='two')")

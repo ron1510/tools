@@ -29,5 +29,6 @@ def test_compile_select_columns_and_computed_var_projection():
         ".project('_key', 'neighbors')"
         ".by(__.id().map{it.get().substring(it.get().lastIndexOf('/') + 1)})"
         ".by(select('neighborhood')"
-        ".id().map{it.get().substring(it.get().lastIndexOf('/') + 1)})"
+        ".project('_key')"
+        ".by(__.id().map{it.get().substring(it.get().lastIndexOf('/') + 1)}))"
     )

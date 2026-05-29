@@ -52,12 +52,16 @@ It drops and recreates `my_graph` in `my_db` with these collections:
 Vertex collections:
 
 - `users-data-product.user_roles`
+- `users-data-product.users`
 - `veto-data-product.abilities`
+- `org-data-product.teams`
 
 Edge collections:
 
 - `users-data-product.user_role_subscriptions`
 - `veto-data-product.role_abilities`
+- `org-data-product.user_memberships`
+- `org-data-product.team_hierarchy`
 
 Seeded user roles:
 
@@ -65,22 +69,49 @@ Seeded user roles:
 - `editor`
 - `viewer`
 - `auditor`
+- `owner`
+
+Seeded users:
+
+- `alice`
+- `bob`
+- `carol`
+- `dave`
+- `erin`
 
 Seeded abilities:
 
 - `read`
 - `write`
 - `delete`
+- `approve`
+
+Seeded teams:
+
+- `platform`
+- `security`
+- `executive`
+- `qa`
 
 Seeded relationships:
 
 - `editor -> admin`
 - `viewer -> editor`
 - `auditor -> admin`
+- `admin -> owner`
 - `admin -> delete`
 - `admin -> write`
+- `admin -> approve`
 - `editor -> write`
 - `viewer -> read`
+- `alice -> platform`
+- `bob -> security`
+- `carol -> executive`
+- `dave -> qa`
+- `erin -> platform`
+- `platform -> executive`
+- `security -> executive`
+- `qa -> platform`
 
 ## Gremlin COMPLEX Config
 
@@ -94,7 +125,7 @@ This configures the ArangoDB TinkerPop Provider in `COMPLEX` mode with Opium
 collection names as vertex and edge labels.
 
 The currently used lab chart renders only the first `edgeDefinitions` list item,
-so the values file stores both edge definitions in one preformatted string. This
+so the values file stores all edge definitions in one preformatted string. This
 is a workaround for the existing chart template.
 
 ## Commands
@@ -130,7 +161,7 @@ Run e2e tests:
 ```powershell
 $env:OPIUM_RUN_E2E='1'
 $env:GREMLIN_URI='ws://localhost:8182/gremlin'
-python -m pytest tests\test_e2e_gremlin_arangodb.py -q
+python -m pytest tests\e2e -q
 ```
 
 ## Manual Gremlin Inspection
@@ -165,18 +196,25 @@ The current e2e tests prove:
 - `_key` filters work through `hasId(TextP.endingWith('/key'))`
 - `_key` projection works through `id()` prefix stripping
 - match predicates work for boolean, numeric, containment, null, and regex cases
-- outbound and inbound edge traversal works across Opium collection names
+- outbound, inbound, and any-direction edge traversal works across Opium
+  collection names
+- multi-domain traversal works across roles, abilities, users, memberships, and
+  team hierarchy collections
+- `_id`, `_from`, and `_to` projection works for the currently tested shapes
 - `skip`, `limit`, `unique`, projection, `array`, and `flatten` work for simple
   tested shapes
+- projected field access returns maps such as `{"_key": "admin"}`
+- deep traversal returns intermediate depths as defined in
+  `docs/OPIUM_SEMANTICS.md`
 
 ## Known E2E Gaps
 
 The e2e tests do not yet prove:
 
-- non-default traversal depth
 - complex `assign`/`select` semantics
 - subquery operands inside conditions
 - variable operands inside conditions
+- default full-document materialization
 - behavior on large datasets
 - behavior if Gremlin Server disables Groovy closure execution
-
+- complex `_from`/`_to` use outside direct edge projections

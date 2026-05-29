@@ -1,3 +1,14 @@
+"""Public parsing API.
+
+The parser uses Lark to recognize the documented Opium expression subset and a
+transformer to convert the parse tree into the typed AST in `ast_nodes.py`.
+
+Important boundary: this module never calls `eval`, `exec`, Python's AST
+evaluator, or user code. String literal decoding uses `ast.literal_eval` inside
+the transformer only to unescape Python-style string tokens that the grammar has
+already recognized.
+"""
+
 from __future__ import annotations
 
 from functools import lru_cache
@@ -39,6 +50,8 @@ def parse_opium(source: str) -> Query:
 
 @lru_cache(maxsize=1)
 def _parser() -> Lark:
+    # The parser is cached because the grammar is static and Lark construction is
+    # more expensive than parsing one expression. Keeping this private also
+    # leaves room to change parser options without affecting the public API.
     grammar = resources.files("opium_parser").joinpath("grammar.lark").read_text()
     return Lark(grammar, parser="lalr", maybe_placeholders=False)
-

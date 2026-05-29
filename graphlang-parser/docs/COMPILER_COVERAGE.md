@@ -18,11 +18,16 @@ What is proven:
   Provider in `COMPLEX` mode
 - collection labels and edge labels were verified live against the provider
 - `_key` behavior was corrected based on live provider output
+- projection now returns maps/documents rather than raw scalar values
+- deep traversal is supported for documented `min_depth`/`max_depth` behavior
+- live e2e tests cover a richer graph with role, user, ability, team, membership,
+  hierarchy, subscription, and role-ability collections
+- float literals are rendered as Java double literals for ArangoDB provider
+  compatibility
 
 What is not proven:
 
 - every possible combination/order of documented methods
-- deep traversal with `min_depth`/`max_depth`
 - all scoping behavior for complex `assign`, `array`, and `select` expressions
 - performance on large graphs
 - compatibility with Gremlin Server configurations that disable Groovy closures
@@ -50,6 +55,18 @@ g.V().hasLabel('collection').hasId(TextP.endingWith('/admin'))
 
 Status: unit-tested and e2e-tested.
 
+Projection returns maps:
+
+```python
+[{"_key": "admin"}]
+```
+
+not raw scalar lists:
+
+```python
+["admin"]
+```
+
 ### `traverse`, `traverse_any`, `traverse_out`, `traverse_in`
 
 Supported:
@@ -71,13 +88,14 @@ Compilation:
 .inE(...)
 ```
 
-Status: unit-tested and e2e-tested for default and directional traversal.
+Status: unit-tested and e2e-tested for default, directional, and deep traversal.
 
-Limitations:
+Depth behavior:
 
-- `min_depth` and `max_depth` parse but compilation currently only supports the
-  default depth of `1`
-- non-default depth raises `UnsupportedOpiumCompilationError`
+- `traverse(max_depth=N).into()` returns vertices at intermediate depths through
+  `N`
+- `traverse(min_depth=M, max_depth=N)` before `into()` returns edges at depths
+  `M..N`
 
 ### `into`
 
@@ -196,18 +214,26 @@ Supported:
 get('collection')['_key']
 var('name')['_key']
 get('collection')['name']
+get('collection')['_id']
+get('edge_collection')['_from']
+get('edge_collection')['_to']
 ```
 
 Compilation:
 
 - `_key` projects from `id()` and strips the collection prefix
-- other fields compile to `.values('field')`
+- `_id` projects the full `collection/key` id
+- other fields compile through `coalesce(values(field), constant(null))`
+- the result shape is a map/document containing the projected field
 
 Status: unit-tested and e2e-tested for traversal result projection.
 
 Portability concern:
 
 - `_key` projection uses a Groovy closure
+- `_from` and `_to` are Opium edge system fields. The current ArangoDB TinkerPop
+  lab does not expose them via `values('_from')` / `values('_to')`, so the
+  compiler returns them using `outV().id()` and `inV().id()`.
 
 ### `match`, `match_all`, `match_any`
 
@@ -256,8 +282,9 @@ The transcript mentions that condition arguments can be:
 The compiler supports literals and field names well. It does not yet fully
 support subquery operands or variable operands inside conditions.
 
-The transcript also documents `min_depth` and `max_depth` for `traverse`. Those
-are parsed and validated, but non-default depth is not compiled yet.
+`array` and `flatten` are implemented for the simple local traversal shapes now
+covered by tests, but the precise nested/per-row semantics still need a stronger
+language definition before treating them as complete.
 
 ## Undocumented Keywords
 
@@ -279,9 +306,9 @@ It is not ready to claim complete Opium compatibility.
 
 Before calling it production-ready, the main missing work is:
 
-1. define exact semantics for deep traversal
-2. harden `assign`/`select`/`array` against real workflows
-3. decide whether Groovy closures are acceptable for `_key` projection
+1. define exact semantics for complex `array`, `flatten`, `assign`, and computed
+   columns
+2. implement match operands that are variables or subqueries
+3. decide when to move from Gremlin Groovy strings to Gremlin Python bytecode
 4. add more e2e cases for variable scoping and nested conditions
 5. run generated queries against representative real data volume
-
