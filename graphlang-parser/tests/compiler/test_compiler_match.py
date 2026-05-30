@@ -62,8 +62,33 @@ def test_compile_null_and_regex():
             "get('users').match(is_null('missing'), "
             "regex_matches('_key', '^hello', caseInsensitive=True))"
         )
-        == "g.V().hasLabel('users').not(__.has('missing'))"
+        == "g.V().hasLabel('users')"
+        ".or(__.not(__.has('missing')), __.has('missing', null))"
         ".has('_key', TextP.regex('(?i)^hello'))"
+    )
+
+
+def test_compile_match_subquery_operand():
+    assert (
+        compile_opium_to_gremlin(
+            "get('roles').match("
+            "eq(traverse_out('role_abilities').into('abilities')['_key'], 'write')"
+            ")"
+        )
+        == "g.V().hasLabel('roles')"
+        ".filter(__.outE('role_abilities').otherV().hasLabel('abilities')"
+        ".hasId(TextP.endingWith('/write')))"
+    )
+
+
+def test_compile_match_variable_operand():
+    assert (
+        compile_opium_to_gremlin(
+            "get('roles').as_var('role')"
+            ".match(eq(var('role')['_key'], 'admin'))"
+        )
+        == "g.V().hasLabel('roles').as('role')"
+        ".filter(__.select('role').hasId(TextP.endingWith('/admin')))"
     )
 
 

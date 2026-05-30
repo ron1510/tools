@@ -32,7 +32,7 @@ target-version = "py311"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+#testpaths = ["tests"]
 markers = [
     "e2e: tests that require a running ArangoDB TinkerPop Gremlin Server",
 ]

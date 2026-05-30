@@ -24,13 +24,13 @@ def test_get_with_resource_and_key():
 
 def test_get_with_multiple_sources():
     ast = parse_opium(
-        "get('users-data-product.user_roles', 'veto-data-product.abilities')"
+        "get('users-data-product.user_roles', 'permissions-data-product.abilities')"
     )
 
     assert isinstance(ast.root, CallExpr)
     assert ast.root.args == [
         StringExpr("users-data-product.user_roles"),
-        StringExpr("veto-data-product.abilities"),
+        StringExpr("permissions-data-product.abilities"),
     ]
 
 
@@ -48,4 +48,3 @@ def test_literals():
 def test_duplicate_kwargs_are_rejected():
     with pytest.raises(InvalidOpiumExpressionError):
         parse_opium("get('x', _key='one', _key='two')")
-

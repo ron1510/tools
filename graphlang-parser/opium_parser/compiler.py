@@ -331,8 +331,7 @@ class _Compiler:
         if isinstance(expr, CallExpr):
             return self._compile_condition_call(expr)
         if isinstance(expr, BinaryOpExpr):
-            field = _field_name(expr.left)
-            return _compile_binary_condition(field, expr)
+            return self._compile_binary_condition(expr)
 
         msg = f"Unsupported match condition: {type(expr).__name__}"
         raise UnsupportedOpiumCompilationError(msg)
@@ -355,35 +354,23 @@ class _Compiler:
             return "".join(conditions)
 
         if call.function == "eq":
-            field, value = _field_value_args(call)
-            if field == "_key":
-                return _compile_key_filter(value)
-            return f".has({quote_groovy(field)}, {render_literal(value)})"
+            left, value = _operand_value_args(call)
+            return self._compile_operand_condition(left, "eq", value)
         if call.function in {"lt", "gt", "lte", "gte"}:
-            field, value = _field_value_args(call)
-            predicate = render_predicate(call.function, value)
-            return f".has({quote_groovy(field)}, {predicate})"
+            left, value = _operand_value_args(call)
+            return self._compile_operand_condition(left, call.function, value)
         if call.function == "ne":
-            field, value = _field_value_args(call)
-            if field == "_key":
-                return f".not(__{_compile_key_filter(value)})"
-            return f".has({quote_groovy(field)}, {render_predicate('neq', value)})"
+            left, value = _operand_value_args(call)
+            return self._compile_operand_condition(left, "ne", value)
         if call.function == "value_in":
-            field, value = _field_value_args(call)
-            if field == "_key":
-                return _compile_key_membership(value, negate=False)
-            return f".has({quote_groovy(field)}, {render_within('within', value)})"
+            left, value = _operand_value_args(call)
+            return self._compile_operand_condition(left, "value_in", value)
         if call.function == "nin":
-            field, value = _field_value_args(call)
-            if field == "_key":
-                return _compile_key_membership(value, negate=True)
-            return f".has({quote_groovy(field)}, {render_within('without', value)})"
+            left, value = _operand_value_args(call)
+            return self._compile_operand_condition(left, "nin", value)
         if call.function == "is_null":
             field = _single_field_arg(call, "is_null")
-            # Arango documents usually omit missing values rather than storing
-            # explicit nulls for every absent field. Current Opium semantics use
-            # "property is not present" as the live-tested null check behavior.
-            return f".not(__.has({quote_groovy(field)}))"
+            return _compile_null_condition(field)
         if call.function == "regex_matches":
             return self._compile_regex(call)
 
@@ -411,36 +398,54 @@ class _Compiler:
             regex = f"(?i){regex}"
         return f".has({quote_groovy(field)}, TextP.regex({quote_groovy(regex)}))"
 
-
-def _string_args(call: CallExpr | MethodCallExpr) -> list[str]:
-    name = call.function if isinstance(call, CallExpr) else call.method
-    return [_expect_string(arg, f"{name} arg") for arg in call.args]
-
-
-def _compile_binary_condition(field: str, expr: BinaryOpExpr) -> str:
-    if field == "_key":
-        # `_key` is not exposed as a normal provider property in the lab. It is
-        # derived from the document id suffix, so only equality-style comparisons
-        # are currently supported.
-        if expr.op == "==":
-            return _compile_key_filter(expr.right)
-        if expr.op == "!=":
-            return f".not(__{_compile_key_filter(expr.right)})"
-        msg = "_key only supports == and != binary comparisons"
-        raise InvalidOpiumSemanticError(msg)
-
-    if expr.op == "==":
-        rendered = render_literal(expr.right)
-    else:
-        predicate_by_op = {
-            "!=": "neq",
+    def _compile_binary_condition(self, expr: BinaryOpExpr) -> str:
+        op_by_symbol = {
+            "==": "eq",
+            "!=": "ne",
             "<": "lt",
             ">": "gt",
             "<=": "lte",
             ">=": "gte",
         }
-        rendered = render_predicate(predicate_by_op[expr.op], expr.right)
-    return f".has({quote_groovy(field)}, {rendered})"
+        return self._compile_operand_condition(
+            expr.left,
+            op_by_symbol[expr.op],
+            expr.right,
+        )
+
+    def _compile_operand_condition(self, left: Expr, op: str, value: Expr) -> str:
+        """Compile a condition whose left operand may be a field or expression.
+
+        Field operands compile to direct `has(...)` filters on the current row.
+        Subscript operands such as `traverse().into()['_key']` compile to a
+        `filter(...)` with an anonymous traversal from the current row. That
+        implements the documented "subquery starts from the current row"
+        semantics.
+        """
+
+        if _is_field_expr(left):
+            return _compile_field_condition(_field_name(left), op, value)
+        if isinstance(left, SubscriptExpr):
+            child = self._compile_condition_operand_traversal(left.receiver)
+            return f".filter({child}{_compile_field_condition(left.field, op, value)})"
+
+        msg = f"Unsupported condition operand: {type(left).__name__}"
+        raise UnsupportedOpiumCompilationError(msg)
+
+    def _compile_condition_operand_traversal(self, expr: Expr) -> str:
+        traversal = self._compile_traversal(expr, child=True).render()
+        if traversal.startswith("__"):
+            return traversal
+        if traversal.startswith("select("):
+            return f"__.{traversal}"
+
+        msg = f"Unsupported condition traversal operand: {type(expr).__name__}"
+        raise UnsupportedOpiumCompilationError(msg)
+
+
+def _string_args(call: CallExpr | MethodCallExpr) -> list[str]:
+    name = call.function if isinstance(call, CallExpr) else call.method
+    return [_expect_string(arg, f"{name} arg") for arg in call.args]
 
 
 def _expect_string(expr: Expr, label: str) -> str:
@@ -535,11 +540,11 @@ def _keyword_conditions(kwargs: dict[str, Expr]) -> list[str]:
     return conditions
 
 
-def _field_value_args(call: CallExpr) -> tuple[str, Expr]:
+def _operand_value_args(call: CallExpr) -> tuple[Expr, Expr]:
     if len(call.args) != 2 or call.kwargs:
         msg = f"{call.function}(...) expects exactly two positional arguments"
         raise InvalidOpiumSemanticError(msg)
-    return _field_name(call.args[0]), call.args[1]
+    return call.args[0], call.args[1]
 
 
 def _single_field_arg(call: CallExpr, name: str) -> str:
@@ -558,6 +563,10 @@ def _field_name(expr: Expr) -> str:
     raise InvalidOpiumSemanticError(msg)
 
 
+def _is_field_expr(expr: Expr) -> bool:
+    return isinstance(expr, StringExpr | NameExpr)
+
+
 def _ensure_list(expr: Expr) -> ListExpr:
     if not isinstance(expr, ListExpr):
         msg = "Expected a list literal"
@@ -570,6 +579,38 @@ def _compile_projection_step(field: str) -> str:
     # `get('roles')['_key']` consistent with `select('_key')` and with the
     # project/document semantics recorded in the Opium semantics notes.
     return f".project({quote_groovy(field)}).by({_compile_by_projection(field)})"
+
+
+def _compile_field_condition(field: str, op: str, value: Expr) -> str:
+    if op == "eq":
+        if field == "_key":
+            return _compile_key_filter(value)
+        return f".has({quote_groovy(field)}, {render_literal(value)})"
+    if op == "ne":
+        if field == "_key":
+            return f".not(__{_compile_key_filter(value)})"
+        return f".has({quote_groovy(field)}, {render_predicate('neq', value)})"
+    if op in {"lt", "gt", "lte", "gte"}:
+        if field == "_key":
+            msg = "_key only supports equality-style comparisons"
+            raise InvalidOpiumSemanticError(msg)
+        return f".has({quote_groovy(field)}, {render_predicate(op, value)})"
+    if op == "value_in":
+        if field == "_key":
+            return _compile_key_membership(value, negate=False)
+        return f".has({quote_groovy(field)}, {render_within('within', value)})"
+    if op == "nin":
+        if field == "_key":
+            return _compile_key_membership(value, negate=True)
+        return f".has({quote_groovy(field)}, {render_within('without', value)})"
+
+    msg = f"Unsupported condition operator: {op}"
+    raise UnsupportedOpiumCompilationError(msg)
+
+
+def _compile_null_condition(field: str) -> str:
+    quoted = quote_groovy(field)
+    return f".or(__.not(__.has({quoted})), __.has({quoted}, null))"
 
 
 def _compile_by_projection(field: str) -> str:

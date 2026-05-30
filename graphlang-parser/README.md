@@ -125,8 +125,10 @@ Current assumptions and limitations:
 - `regex_matches(...)` compiles with `TextP.regex(...)`
 - traversal depths with `min_depth` / `max_depth` are compiled for the current
   edge-first traversal model
-- complex `assign`, computed `select` columns, and match operands based on
-  variables or subqueries still need semantic completion
+- match operands based on current-row subqueries and row-scoped variables are
+  supported for the tested projection/comparison shapes
+- complex `assign`, complex `array`, and default full-document materialization
+  still need semantic completion
 - Gremlin strings are rendered only; they are never executed by this package
 
 ## ArangoDB / Gremlin E2E Tests
@@ -167,11 +169,17 @@ blocked at compilation until its Gremlin behavior is explicit.
 
 ## Deeper Documentation
 
+- [Developer guide](docs/DEVELOPER_GUIDE.md)
 - [Architecture](docs/ARCHITECTURE.md)
+- [Compiler walkthrough](docs/COMPILER_WALKTHROUGH.md)
 - [Compiler coverage and readiness](docs/COMPILER_COVERAGE.md)
 - [ArangoDB Gremlin e2e lab](docs/E2E_LAB.md)
+- [E2E graph reference](docs/E2E_GRAPH_REFERENCE.md)
 - [Opium semantics](docs/OPIUM_SEMANTICS.md)
 - [Implementation decisions](docs/IMPLEMENTATION_DECISIONS.md)
+- [Migration guide](docs/MIGRATION_GUIDE.md)
+- [Review checklist](docs/REVIEW_CHECKLIST.md)
 - [Testing strategy](docs/TESTING_STRATEGY.md)
 - [Learning roadmap](docs/LEARNING_ROADMAP.md)
 - [Questions for compiler completion](docs/QUESTIONS_FOR_COMPILER_COMPLETION.md)
+- [Semantic audit questions](docs/SEMANTIC_AUDIT_QUESTIONS.md)

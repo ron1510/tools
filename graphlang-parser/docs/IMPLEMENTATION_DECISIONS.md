@@ -1,5 +1,8 @@
 # Implementation Decisions
 
+For a practical contributor workflow, read `docs/DEVELOPER_GUIDE.md`. For
+compiler control flow, read `docs/COMPILER_WALKTHROUGH.md`.
+
 This document explains the main design choices in the Opium parser/compiler
 project. It is written for review: each section states what the code does, why
 it does it, and what should be revisited later.
@@ -315,26 +318,27 @@ Reason:
 
 Limitation:
 
-- Only supported condition forms compile. Subquery and variable operands are
-  parsed but still unresolved semantically.
+- Subquery and variable operands now compile for the tested field-projection
+  comparison shapes. More exotic nested operands should still be added
+  incrementally with tests.
 
-## 17. `is_null` Means Missing Property
+## 17. `is_null` Means Missing Or Explicit Null
 
 Current compilation:
 
 ```groovy
-not(__.has('field'))
+or(__.not(__.has('field')), __.has('field', null))
 ```
 
 Reason:
 
-- Arango documents often omit absent fields.
-- The live e2e tests currently validate missing-field behavior.
+- Opium treats both missing properties and explicit null values as null-like for
+  `is_null(field)`.
 
 Review point:
 
-- If Opium needs to distinguish missing from explicitly stored `null`, this
-  needs more work.
+- This behavior is live-tested, but it remains provider-sensitive because null
+  indexing/query behavior can differ between graph backends.
 
 ## 18. Regex Case-Insensitive Uses `(?i)`
 
@@ -436,8 +440,6 @@ Skipped tests currently mark:
 
 - default full-document materialization
 - complex `assign/select`
-- match operands that are subqueries
-- match operands that are variables
 - unresolved complex array/flatten semantics
 
 Reason:
@@ -452,9 +454,7 @@ Before claiming complete Opium support, these need final decisions:
 1. Should root `get(edge_collection)` be supported for edge collections?
 2. Should default results materialize full documents, and with which system
    fields?
-3. Should `is_null` match missing fields, explicit null fields, or both?
-4. What is the exact row/variable scope of `assign`?
-5. What should computed `select` support beyond `var(...)` and field projection?
-6. How should match conditions compare against subquery results?
-7. When should the compiler move from Gremlin Groovy strings to Gremlin Python
+3. What is the exact row/variable scope of `array` and `assign`?
+4. What should computed `select` support beyond `var(...)` and field projection?
+5. When should the compiler move from Gremlin Groovy strings to Gremlin Python
    bytecode?

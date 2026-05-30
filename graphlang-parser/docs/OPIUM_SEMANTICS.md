@@ -214,6 +214,21 @@ including:
 Individual compiler support may still be implemented incrementally, but the
 language semantics allow `var(...)` broadly.
 
+Inside `match(...)`, variables are evaluated from the current row's variable
+scope.
+
+Example:
+
+```python
+get('users-data-product.user_roles')
+    .as_var('role')
+    .match(eq(var('role')['_key'], 'admin'))
+```
+
+returns the current `user_roles` entities whose bound `role` variable has
+`_key == "admin"`. In this example, the result is equivalent to matching the
+current row's `_key` against `"admin"`.
+
 ## `select(...)` Semantics
 
 `select(...)` returns maps/documents containing the selected fields and computed
@@ -258,6 +273,102 @@ returns:
 ```
 
 Multiple field projection should be expressed with `select(...)`, not with `[]`.
+
+Computed columns return whatever the computed expression returns.
+
+If the expression returns a scalar, the computed column value is scalar. If the
+expression returns an array, the computed column value is an array. If the
+expression returns a map/document, the computed column value is a map/document.
+
+Example:
+
+```python
+select('_key', neighbors=var('neighborhood')['_key'])
+```
+
+If `neighborhood` is bound to an array of entities, then `neighbors` should be an
+array of projected `_key` maps or values according to the projection semantics
+of that expression.
+
+## Aggregation And Result Shaping
+
+`count()` returns the count of the current result stream.
+
+Example:
+
+```python
+get('users-data-product.user_roles').match(active=True).count()
+```
+
+returns a one-item result containing the number of active user role documents.
+
+`unique()` removes duplicate current results.
+
+Example:
+
+```python
+get('users-data-product.user_roles')
+    .traverse_out('permissions-data-product.role_abilities')
+    .into('permissions-data-product.abilities')
+    .unique()
+```
+
+returns each reached ability only once, even if multiple roles reach the same
+ability.
+
+`skip(N)` and `limit(N)` operate on the current result stream. Ordering is still
+unspecified unless an explicit ordering operation is introduced.
+
+## `array(...)` And `flatten(...)` Semantics
+
+`flatten()` and `flatten(depth=1)` are equivalent.
+
+`flatten(depth=N)` flattens nested arrays by `N` levels.
+
+Examples:
+
+```python
+flatten()
+flatten(depth=1)
+flatten(depth=2)
+```
+
+If the current result contains nested arrays, `flatten(depth=2)` removes two
+array nesting levels. The operation should not imply additional graph traversal;
+it only reshapes array/list results.
+
+The exact row scope of `array(sub_query)` is still unresolved and remains in
+`docs/QUESTIONS_FOR_COMPILER_COMPLETION.md`.
+
+## Match Subquery Semantics
+
+Condition operands may be subqueries, but a complete query must still establish
+an initial cursor with `get(...)`.
+
+Example:
+
+```python
+get('some-things.some')
+    .match(eq(traverse().into()['_key'], 'admin'))
+```
+
+This returns all `some-things.some` entities for which a depth-1 reachable node
+has `_key == "admin"`.
+
+The subquery inside the condition starts from the current row. It is not a
+global graph query.
+
+## Null Semantics
+
+`is_null(field)` matches both:
+
+- documents where `field` is missing
+- documents where `field` exists with an explicit null value
+
+Compiler implementations should preserve this distinction from ordinary
+equality matching. If the provider cannot directly query explicit null and
+missing values in one portable step, the compiler should use provider-specific
+Gremlin that produces the same Opium behavior.
 
 ## Regex Semantics
 

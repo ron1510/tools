@@ -1,5 +1,8 @@
 # ArangoDB Gremlin E2E Lab
 
+For a table-oriented description of the seeded graph, read
+`docs/E2E_GRAPH_REFERENCE.md`.
+
 The e2e lab validates generated Gremlin against a real ArangoDB TinkerPop
 Provider setup.
 
@@ -53,15 +56,31 @@ Vertex collections:
 
 - `users-data-product.user_roles`
 - `users-data-product.users`
-- `veto-data-product.abilities`
+- `permissions-data-product.abilities`
 - `org-data-product.teams`
+- `org-data-product.departments`
+- `delivery-data-product.projects`
+- `platform-data-product.services`
+- `ops-data-product.incidents`
+- `infra-data-product.regions`
+- `infra-data-product.environments`
+- `knowledge-data-product.documents`
 
 Edge collections:
 
 - `users-data-product.user_role_subscriptions`
-- `veto-data-product.role_abilities`
+- `permissions-data-product.role_abilities`
 - `org-data-product.user_memberships`
 - `org-data-product.team_hierarchy`
+- `users-data-product.user_role_assignments`
+- `org-data-product.department_memberships`
+- `delivery-data-product.department_projects`
+- `platform-data-product.project_services`
+- `platform-data-product.service_dependencies`
+- `ops-data-product.incident_impacts`
+- `infra-data-product.service_regions`
+- `infra-data-product.service_environments`
+- `knowledge-data-product.document_links`
 
 Seeded user roles:
 
@@ -112,6 +131,22 @@ Seeded relationships:
 - `platform -> executive`
 - `security -> executive`
 - `qa -> platform`
+- users -> roles
+- users -> departments
+- departments -> projects
+- projects -> services
+- services -> services
+- incidents -> services
+- services -> regions
+- services -> environments
+- documents -> documents
+
+Current graph size:
+
+```text
+73 vertices across 11 vertex collections
+118 edges across 13 edge collections
+```
 
 ## Gremlin COMPLEX Config
 
@@ -196,10 +231,17 @@ The current e2e tests prove:
 - `_key` filters work through `hasId(TextP.endingWith('/key'))`
 - `_key` projection works through `id()` prefix stripping
 - match predicates work for boolean, numeric, containment, null, and regex cases
+- complex mixed queries work for filtering, traversal, projection, unique, and
+  count aggregation in one chain
 - outbound, inbound, and any-direction edge traversal works across Opium
   collection names
 - multi-domain traversal works across roles, abilities, users, memberships, and
   team hierarchy collections
+- larger cross-domain traversal works across departments, projects, services,
+  incidents, regions, environments, and document-link chains
+- match operands based on current-row subqueries
+- match operands based on row-scoped variables
+- `is_null(field)` matching missing fields or explicit null values
 - `_id`, `_from`, and `_to` projection works for the currently tested shapes
 - `skip`, `limit`, `unique`, projection, `array`, and `flatten` work for simple
   tested shapes
@@ -212,8 +254,6 @@ The current e2e tests prove:
 The e2e tests do not yet prove:
 
 - complex `assign`/`select` semantics
-- subquery operands inside conditions
-- variable operands inside conditions
 - default full-document materialization
 - behavior on large datasets
 - behavior if Gremlin Server disables Groovy closure execution

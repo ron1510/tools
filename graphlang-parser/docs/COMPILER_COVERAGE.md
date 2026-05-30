@@ -21,9 +21,14 @@ What is proven:
 - projection now returns maps/documents rather than raw scalar values
 - deep traversal is supported for documented `min_depth`/`max_depth` behavior
 - live e2e tests cover a richer graph with role, user, ability, team, membership,
-  hierarchy, subscription, and role-ability collections
+  hierarchy, subscription, role-ability, department, project, service, incident,
+  region, environment, and document collections
 - float literals are rendered as Java double literals for ArangoDB provider
   compatibility
+- match operands can now be field names, current-row subqueries, or row-scoped
+  variables for the tested comparison forms
+- `is_null(field)` now matches missing fields or explicit null values in the
+  live provider test graph
 
 What is not proven:
 
@@ -266,8 +271,8 @@ Status: unit-tested and e2e-tested for the main predicate forms.
 
 Limitations:
 
-- condition operands that are subqueries or variables are parsed but not fully
-  compiled
+- deeply nested condition operands beyond the tested subquery/variable shapes
+  may still need expansion
 - regex assumes `TextP.regex(...)` is available in the target Gremlin runtime
 
 ## Currently Unsupported Documented Areas
@@ -280,11 +285,14 @@ The transcript mentions that condition arguments can be:
 - a specific field name
 
 The compiler supports literals and field names well. It does not yet fully
-support subquery operands or variable operands inside conditions.
+support every possible nested subquery/variable condition shape.
 
 `array` and `flatten` are implemented for the simple local traversal shapes now
 covered by tests, but the precise nested/per-row semantics still need a stronger
 language definition before treating them as complete.
+
+`flatten(depth=...)` semantics are now defined, but `array(subquery)` row scope
+and replacement-vs-attachment behavior are still open.
 
 ## Undocumented Keywords
 
@@ -306,9 +314,8 @@ It is not ready to claim complete Opium compatibility.
 
 Before calling it production-ready, the main missing work is:
 
-1. define exact semantics for complex `array`, `flatten`, `assign`, and computed
-   columns
-2. implement match operands that are variables or subqueries
+1. define exact semantics for complex `array` and `assign`
+2. implement default full-document materialization
 3. decide when to move from Gremlin Groovy strings to Gremlin Python bytecode
 4. add more e2e cases for variable scoping and nested conditions
 5. run generated queries against representative real data volume

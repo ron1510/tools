@@ -8,10 +8,24 @@ from opium_parser import compile_opium_to_gremlin
 from tests.fixtures.e2e_graph import (
     ABILITY,
     COUNTS,
+    DEPARTMENT,
+    DEPARTMENT_PROJECT,
+    DOCUMENT,
+    DOCUMENT_LINK,
     EDGE_LABELS,
+    ENVIRONMENT,
+    INCIDENT,
+    INCIDENT_IMPACT,
     MEMBERSHIP,
+    PROJECT,
+    PROJECT_SERVICE,
+    REGION,
     ROLE,
     ROLE_ABILITY,
+    SERVICE,
+    SERVICE_DEPENDENCY,
+    SERVICE_ENVIRONMENT,
+    SERVICE_REGION,
     SUBSCRIPTION,
     TEAM,
     TEAM_HIERARCHY,
@@ -76,6 +90,17 @@ def test_get_counts_and_multi_source_get(client):
     assert run_query(client, f"get('{USER}').count()") == [COUNTS[USER]]
     assert run_query(client, f"get('{ABILITY}').count()") == [COUNTS[ABILITY]]
     assert run_query(client, f"get('{TEAM}').count()") == [COUNTS[TEAM]]
+    assert run_query(client, f"get('{DEPARTMENT}').count()") == [
+        COUNTS[DEPARTMENT]
+    ]
+    assert run_query(client, f"get('{PROJECT}').count()") == [COUNTS[PROJECT]]
+    assert run_query(client, f"get('{SERVICE}').count()") == [COUNTS[SERVICE]]
+    assert run_query(client, f"get('{INCIDENT}').count()") == [COUNTS[INCIDENT]]
+    assert run_query(client, f"get('{REGION}').count()") == [COUNTS[REGION]]
+    assert run_query(client, f"get('{ENVIRONMENT}').count()") == [
+        COUNTS[ENVIRONMENT]
+    ]
+    assert run_query(client, f"get('{DOCUMENT}').count()") == [COUNTS[DOCUMENT]]
     assert run_query(client, f"get('{ROLE}', '{ABILITY}').count()") == [
         COUNTS[ROLE] + COUNTS[ABILITY]
     ]
@@ -265,6 +290,39 @@ def test_skip_limit_count_and_projection_shape(client):
     assert run_query(client, f"get('{ROLE}').limit(2).count()") == [2]
 
 
+def test_complex_filter_traversal_aggregation_query(client):
+    query = (
+        f"get('{ROLE}')"
+        ".match(active=True, category='internal')"
+        ".match(gt('priority', 5), score >= 90.0)"
+        f".traverse_out('{ROLE_ABILITY}')"
+        f".into('{ABILITY}')"
+        ".match(value_in('_key', ['write', 'delete', 'approve']))"
+        ".unique()"
+        ".count()"
+    )
+
+    assert run_query(client, query) == [3]
+
+
+def test_complex_match_any_select_and_limit_query(client):
+    query = (
+        f"get('{ROLE}')"
+        ".match_any("
+        "eq('_key', 'admin'), "
+        "regex_matches('name', '^aud', caseInsensitive=True), "
+        "gt('priority', 10)"
+        ")"
+        ".select('_key', '_id', 'name', 'missing_field')"
+        ".limit(5)"
+    )
+
+    rows = run_query(client, query)
+    assert sorted_projected(rows, "_key") == ["admin", "auditor", "owner"]
+    assert all(set(row) == {"_key", "_id", "name", "missing_field"} for row in rows)
+    assert all(row["missing_field"] is None for row in rows)
+
+
 def test_array_flatten_smoke_for_current_behavior(client):
     result = run_query(
         client,
@@ -273,6 +331,67 @@ def test_array_flatten_smoke_for_current_behavior(client):
     )
 
     assert sorted_projected(result, "_key") == ["approve", "delete", "write"]
+
+
+def test_large_graph_department_project_service_dependency_chain(client):
+    query = (
+        f"get('{DEPARTMENT}', _key='eng')"
+        f".traverse_out('{DEPARTMENT_PROJECT}')"
+        f".into('{PROJECT}')"
+        f".traverse_out('{PROJECT_SERVICE}')"
+        f".into('{SERVICE}')"
+        f".traverse_out('{SERVICE_DEPENDENCY}')"
+        f".into('{SERVICE}')"
+        ".match(value_in('_key', "
+        "['service-1', 'service-2', 'service-5', 'service-6', 'service-11']"
+        "))"
+        ".unique()"
+        "['_key']"
+    )
+
+    assert sorted_projected(run_query(client, query), "_key") == [
+        "service-1",
+        "service-11",
+        "service-2",
+        "service-5",
+        "service-6",
+    ]
+
+
+def test_large_graph_incident_reverse_traversal_and_aggregation(client):
+    query = (
+        f"get('{SERVICE}', _key='service-0')"
+        f".traverse_in('{INCIDENT_IMPACT}')"
+        f".into('{INCIDENT}')"
+        ".match(open=True, severity=1)"
+        ".count()"
+    )
+
+    assert run_query(client, query) == [1]
+
+
+def test_large_graph_regions_environments_and_documents(client):
+    service_to_targets = (
+        f"get('{SERVICE}', _key='service-0')"
+        f".traverse_out('{SERVICE_REGION}', '{SERVICE_ENVIRONMENT}')"
+        f".into('{REGION}', '{ENVIRONMENT}')"
+        ".select('_key', '_id')"
+    )
+    doc_chain = (
+        f"get('{DOCUMENT}', _key='doc-0')"
+        f".traverse_out('{DOCUMENT_LINK}', max_depth=4)"
+        f".into('{DOCUMENT}')"
+        ".unique()"
+        ".count()"
+    )
+
+    assert sorted_projected(run_query(client, service_to_targets), "_key") == [
+        "dev",
+        "dr",
+        "prod",
+        "us-east",
+    ]
+    assert run_query(client, doc_chain) == [4]
 
 
 @pytest.mark.skip(reason="Default full-document materialization is not implemented yet")
@@ -303,18 +422,65 @@ def test_assign_select_computed_column_placeholder(client):
     )
 
 
-@pytest.mark.skip(reason="match subquery operand semantics are unresolved")
-def test_match_subquery_operand_placeholder(client):
-    run_query(
+def test_match_subquery_operand_expected_result(client):
+    rows = run_query(
         client,
         f"get('{ROLE}').match("
-        f"eq(traverse_out('{ROLE_ABILITY}').into()['_key'], 'write'))",
+        f"eq(traverse_out('{ROLE_ABILITY}').into('{ABILITY}')['_key'], 'write'))"
+        "['_key']",
     )
 
+    assert sorted_projected(rows, "_key") == ["admin", "editor"]
 
-@pytest.mark.skip(reason="match variable operand semantics are unresolved")
-def test_match_variable_operand_placeholder(client):
-    run_query(
+
+def test_match_subquery_operand_with_value_in_expected_result(client):
+    rows = run_query(
         client,
-        f"get('{ROLE}').as_var('role').match(eq(var('role')['_key'], 'admin'))",
+        f"get('{ROLE}').match("
+        f"value_in(traverse_out('{ROLE_ABILITY}').into('{ABILITY}')['_key'], "
+        "['read', 'approve'])"
+        ")['_key']",
     )
+
+    assert sorted_projected(rows, "_key") == ["admin", "viewer"]
+
+
+def test_match_deep_traversal_operand_expected_result(client):
+    rows = run_query(
+        client,
+        f"get('{TEAM}').match("
+        f"eq(traverse_out('{TEAM_HIERARCHY}', max_depth=2)"
+        f".into('{TEAM}')['_key'], 'executive')"
+        ")['_key']",
+    )
+
+    assert sorted_projected(rows, "_key") == ["platform", "qa", "security"]
+
+
+def test_match_variable_operand_expected_result(client):
+    rows = run_query(
+        client,
+        f"get('{ROLE}').as_var('role')"
+        ".match(eq(var('role')['_key'], 'admin'))['_key']",
+    )
+
+    assert rows == [{"_key": "admin"}]
+
+
+def test_is_null_matches_missing_or_explicit_null_expected_result(client):
+    assert run_query(
+        client,
+        f"get('{ROLE}').match(is_null('nullable_field')).count()",
+    ) == [5]
+
+
+@pytest.mark.skip(reason="Traversal aggregation inside match needs semantics")
+def test_match_traversal_count_at_least_three_expected_result(client):
+    rows = run_query(
+        client,
+        f"get('{ROLE}').match("
+        f"traverse_out('{ROLE_ABILITY}').into('{ABILITY}').count() >= 3"
+        ")['_key']",
+    )
+
+    assert rows == [{"_key": "admin"}]

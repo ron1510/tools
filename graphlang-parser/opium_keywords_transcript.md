@@ -24,7 +24,7 @@ get(*sources, _key=None)
 ```python
 get('users-data-product.user_roles')  # lists all 'User Role's
 
-get('users-data-product.user_roles', 'veto-data-product.abilities')
+get('users-data-product.user_roles', 'permissions-data-product.abilities')
 # lists all 'User Role's and 'Abilities'
 ```
 

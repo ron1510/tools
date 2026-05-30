@@ -1,5 +1,9 @@
 # Opium Parser And Compiler Architecture
 
+For hands-on setup and review workflow, start with `docs/DEVELOPER_GUIDE.md`.
+For a line-by-line explanation of compiler behavior, read
+`docs/COMPILER_WALKTHROUGH.md`.
+
 This project has two separate responsibilities:
 
 1. Parse documented Opium query expressions into a typed Python AST.
@@ -188,3 +192,10 @@ Compiler errors:
 Use parser errors for invalid syntax and compiler errors for valid syntax with
 unsupported or invalid semantics.
 
+## Related Documents
+
+- `docs/DEVELOPER_GUIDE.md`: setup, development workflow, and extension process
+- `docs/COMPILER_WALKTHROUGH.md`: detailed compiler behavior
+- `docs/IMPLEMENTATION_DECISIONS.md`: why key tradeoffs were made
+- `docs/E2E_GRAPH_REFERENCE.md`: synthetic graph shape used in live tests
+- `docs/REVIEW_CHECKLIST.md`: code review checklist

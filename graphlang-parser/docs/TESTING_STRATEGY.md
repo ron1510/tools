@@ -1,5 +1,8 @@
 # Testing Strategy
 
+For exact e2e graph shape, read `docs/E2E_GRAPH_REFERENCE.md`. For setup and
+commands, read `docs/DEVELOPER_GUIDE.md` and `docs/E2E_LAB.md`.
+
 The test suite is split by responsibility so failures point at the right layer.
 
 ## Parser Tests
@@ -41,10 +44,12 @@ Coverage includes:
 - `as_var`, `var`, `assign`, and `select` string generation
 - match predicates, including comparisons, containment, null checks, regex, and
   float literal rendering as Java doubles
+- complex mixed queries that combine filtering, traversal, projection, and
+  aggregation
 
-Compiler tests also include skipped placeholders for semantic areas that are not
-settled yet, so the missing work remains visible without making the normal suite
-red.
+Compiler tests also include skipped placeholders for semantic areas that are
+specified but not implemented yet, or still awaiting a final semantic decision.
+This keeps missing work visible without making the normal suite red.
 
 ## E2E Tests
 
@@ -76,6 +81,10 @@ The live e2e suite proves that the compiler's current assumptions match the
 provider in `COMPLEX` mode: collections are labels, document ids are
 `collection/key`, edge endpoints can be projected through adjacent vertices, and
 the supported Opium subset returns the expected data.
+
+The live suite also includes skipped expected-result tests for specified
+semantics that are not implemented yet, such as match operands based on
+subqueries or variables.
 
 ## Normal Commands
 

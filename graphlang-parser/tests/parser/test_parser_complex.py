@@ -5,10 +5,10 @@ def test_parse_complex_documented_chain():
     ast = parse_opium(
         "get('users-data-product.user_roles', _key='admin')"
         ".traverse_out("
-        "'veto-data-product.role_abilities', "
+        "'permissions-data-product.role_abilities', "
         "max_depth=3"
         ")"
-        ".into('veto-data-product.abilities')"
+        ".into('permissions-data-product.abilities')"
         ".match_any("
         "eq('_key', 'write'), "
         "regex_matches('name', '^A', caseInsensitive=True)"

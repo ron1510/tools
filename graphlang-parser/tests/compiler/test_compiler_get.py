@@ -15,10 +15,10 @@ def test_compile_get():
 def test_compile_get_multiple_collections():
     assert (
         compile_opium_to_gremlin(
-            "get('users-data-product.user_roles', 'veto-data-product.abilities')"
+            "get('users-data-product.user_roles', 'permissions-data-product.abilities')"
         )
         == "g.V().hasLabel('users-data-product.user_roles', "
-        "'veto-data-product.abilities')"
+        "'permissions-data-product.abilities')"
     )
 
 
