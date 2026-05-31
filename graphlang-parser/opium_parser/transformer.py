@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import ast
-from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal, cast
 
 from lark import Token, Transformer, v_args
+from pydantic import BaseModel, ConfigDict
 
 from opium_parser.ast_nodes import (
     BinaryOpExpr,
@@ -12,6 +12,7 @@ from opium_parser.ast_nodes import (
     CallExpr,
     DictExpr,
     Expr,
+    ExprNode,
     ListExpr,
     MethodCallExpr,
     NameExpr,
@@ -25,71 +26,29 @@ from opium_parser.errors import (
     InvalidOpiumExpressionError,
     UnsupportedOpiumSyntaxError,
 )
-
-# Function/method allow-list for the Opium grammar.
-#
-# The grammar can recognize generic `NAME(...)` calls, but this transformer
-# narrows them to documented Opium names. This is where we reject expressions
-# like `open(...)`, `lambda`, or random helper calls before they can reach a
-# compiler.
-#
-# The allow-list is parser-level, not compiler-level: a name can be valid Opium
-# syntax even if the current Gremlin compiler still rejects some semantic
-# shapes.
-ALLOWED_CALL_NAMES = frozenset(
-    {
-        "get",
-        "traverse",
-        "traverse_any",
-        "traverse_out",
-        "traverse_in",
-        "into",
-        "skip",
-        "limit",
-        "count",
-        "array",
-        "flatten",
-        "as_var",
-        "var",
-        "assign",
-        "select",
-        "unique",
-        "match",
-        "match_all",
-        "match_any",
-        "eq",
-        "lt",
-        "gt",
-        "lte",
-        "gte",
-        "ne",
-        "value_in",
-        "nin",
-        "is_null",
-        "regex_matches",
-    }
-)
+from opium_parser.opium_names import parse_call_name
 
 
-@dataclass(frozen=True)
-class _KeywordArg:
+class _TransformerValue(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class _KeywordArg(_TransformerValue):
     """Temporary transformer value for a parsed keyword argument."""
 
     name: str
-    value: Expr
+    value: ExprNode
 
 
-@dataclass(frozen=True)
-class _MethodTrailer:
+class _MethodTrailer(_TransformerValue):
     """Temporary transformer value for `.method(...)` before receiver binding."""
 
     method: str
-    args: list[Expr]
-    kwargs: dict[str, Expr]
+    args: list[ExprNode]
+    kwargs: dict[str, ExprNode]
 
 
-@dataclass(frozen=True)
-class _SubscriptTrailer:
+class _SubscriptTrailer(_TransformerValue):
     """Temporary transformer value for `[field]` before receiver binding."""
 
     field: str
@@ -106,16 +65,16 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
     """
 
     def start(self, children: list[Any]) -> Query:
-        return Query(root=children[0])
+        return Query(root=cast(ExprNode, children[0]))
 
     def chain(self, children: list[Any]) -> Expr:
-        expr = children[0]
+        expr = cast(ExprNode, children[0])
         for trailer in children[1:]:
             if isinstance(trailer, _MethodTrailer):
-                self._validate_call_name(trailer.method)
+                method = parse_call_name(trailer.method)
                 expr = MethodCallExpr(
                     receiver=expr,
-                    method=trailer.method,
+                    method=method,
                     args=trailer.args,
                     kwargs=trailer.kwargs,
                 )
@@ -127,19 +86,22 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
         return expr
 
     def call(self, children: list[Any]) -> CallExpr:
-        function = str(children[0])
-        self._validate_call_name(function)
-        args, kwargs = children[1]
+        function = parse_call_name(str(children[0]))
+        args, kwargs = cast(tuple[list[ExprNode], dict[str, ExprNode]], children[1])
         return CallExpr(function=function, args=args, kwargs=kwargs)
 
-    def call_args(self, children: list[Any]) -> tuple[list[Expr], dict[str, Expr]]:
+    def call_args(
+        self, children: list[Any]
+    ) -> tuple[list[ExprNode], dict[str, ExprNode]]:
         if not children:
             return [], {}
-        return children[0]
+        return cast(tuple[list[ExprNode], dict[str, ExprNode]], children[0])
 
-    def arguments(self, children: list[Any]) -> tuple[list[Expr], dict[str, Expr]]:
-        args: list[Expr] = []
-        kwargs: dict[str, Expr] = {}
+    def arguments(
+        self, children: list[Any]
+    ) -> tuple[list[ExprNode], dict[str, ExprNode]]:
+        args: list[ExprNode] = []
+        kwargs: dict[str, ExprNode] = {}
         seen_keyword = False
 
         for child in children:
@@ -156,20 +118,20 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
                 if seen_keyword:
                     msg = "Positional arguments cannot follow keyword arguments"
                     raise InvalidOpiumExpressionError(msg)
-                args.append(child)
+                args.append(cast(ExprNode, child))
 
         return args, kwargs
 
     def kwarg(self, children: list[Any]) -> _KeywordArg:
-        return _KeywordArg(name=str(children[0]), value=children[1])
+        return _KeywordArg(name=str(children[0]), value=cast(ExprNode, children[1]))
 
     def method_trailer(self, children: list[Any]) -> _MethodTrailer:
         method = str(children[0])
-        args, kwargs = children[1]
+        args, kwargs = cast(tuple[list[ExprNode], dict[str, ExprNode]], children[1])
         return _MethodTrailer(method=method, args=args, kwargs=kwargs)
 
     def subscript_trailer(self, children: list[Any]) -> _SubscriptTrailer:
-        return _SubscriptTrailer(field=children[0])
+        return _SubscriptTrailer(field=cast(str, children[0]))
 
     def string_field(self, children: list[Any]) -> str:
         return _decode_string(children[0])
@@ -178,7 +140,12 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
         return str(children[0])
 
     def binary_expr(self, children: list[Any]) -> BinaryOpExpr:
-        return BinaryOpExpr(left=children[0], op=str(children[1]), right=children[2])
+        op = cast(Literal["==", "!=", "<", ">", "<=", ">="], str(children[1]))
+        return BinaryOpExpr(
+            left=cast(ExprNode, children[0]),
+            op=op,
+            right=cast(ExprNode, children[2]),
+        )
 
     def name_expr(self, children: list[Any]) -> NameExpr:
         return NameExpr(name=str(children[0]))
@@ -203,14 +170,14 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
 
     def list_expr(self, children: list[Any]) -> ListExpr:
         items = children[0] if children else []
-        return ListExpr(items=items)
+        return ListExpr(items=cast(list[ExprNode], items))
 
-    def expr_list(self, children: list[Any]) -> list[Expr]:
-        return children
+    def expr_list(self, children: list[Any]) -> list[ExprNode]:
+        return cast(list[ExprNode], children)
 
     def dict_expr(self, children: list[Any]) -> DictExpr:
-        pairs = children[0] if children else []
-        items: dict[str, Expr] = {}
+        pairs = cast(list[tuple[str, ExprNode]], children[0] if children else [])
+        items: dict[str, ExprNode] = {}
         for key, value in pairs:
             if key in items:
                 msg = f"Duplicate dict key: {key}"
@@ -218,11 +185,11 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
             items[key] = value
         return DictExpr(items=items)
 
-    def dict_items(self, children: list[Any]) -> list[tuple[str, Expr]]:
-        return children
+    def dict_items(self, children: list[Any]) -> list[tuple[str, ExprNode]]:
+        return cast(list[tuple[str, ExprNode]], children)
 
-    def dict_item(self, children: list[Any]) -> tuple[str, Expr]:
-        return children[0], children[1]
+    def dict_item(self, children: list[Any]) -> tuple[str, ExprNode]:
+        return str(children[0]), cast(ExprNode, children[1])
 
     def string_key(self, children: list[Any]) -> str:
         return _decode_string(children[0])
@@ -233,11 +200,6 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
     @v_args(inline=True)
     def COMP_OP(self, token: Token) -> str:  # noqa: N802
         return str(token)
-
-    def _validate_call_name(self, name: str) -> None:
-        if name not in ALLOWED_CALL_NAMES:
-            msg = f"Unsupported Opium function or method: {name}"
-            raise UnsupportedOpiumSyntaxError(msg)
 
 
 def _decode_string(token: Token) -> str:

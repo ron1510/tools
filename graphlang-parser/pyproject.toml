@@ -10,10 +10,13 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "lark>=1.1.9",
+    "pydantic>=2.9,<3",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "hypothesis>=6.100",
+    "mypy>=1.10",
     "pytest>=8.0",
     "ruff>=0.4",
 ]
@@ -32,7 +35,21 @@ target-version = "py311"
 select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
-#testpaths = ["tests"]
+testpaths = ["tests"]
 markers = [
     "e2e: tests that require a running ArangoDB TinkerPop Gremlin Server",
 ]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+show_error_codes = true
+pretty = true
+files = ["opium_parser"]
+
+[[tool.mypy.overrides]]
+module = ["lark.*"]
+ignore_missing_imports = true

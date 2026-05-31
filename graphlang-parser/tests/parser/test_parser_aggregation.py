@@ -33,5 +33,4 @@ def test_flatten_with_depth():
 
     assert isinstance(ast.root, MethodCallExpr)
     assert ast.root.method == "flatten"
-    assert ast.root.kwargs["depth"] == NumberExpr(2)
-
+    assert ast.root.kwargs["depth"] == NumberExpr(value=2)

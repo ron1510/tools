@@ -1,21 +1,31 @@
+"""Small Pydantic IR for Gremlin Groovy traversal strings."""
+
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from opium_parser.types import GremlinGroovyString
 
 
-@dataclass
-class GremlinTraversal:
-    """Small string-building IR for Gremlin Groovy traversals.
+class GremlinTraversal(BaseModel):
+    """Append-only builder for a Gremlin Groovy traversal.
 
-    This is deliberately not a complete Gremlin AST. At this stage the compiler
-    emits Gremlin Groovy strings, and most decisions are linear traversal steps.
-    Keeping a tiny append-only object makes the compiler easier to read while
-    preserving an obvious future replacement point for Gremlin Python bytecode or
-    a richer internal IR.
+    This is deliberately not a complete Gremlin AST. It gives the compiler a
+    typed place to accumulate Groovy fragments and a future replacement point for
+    bytecode or a richer IR.
     """
 
+    model_config = ConfigDict(extra="forbid")
+
     start: str
-    steps: list[str] = field(default_factory=list)
+    steps: list[str] = Field(default_factory=list)
+
+    def __init__(self, start: str | None = None, **data: Any) -> None:
+        if start is not None:
+            data["start"] = start
+        super().__init__(**data)
 
     def add(self, step: str) -> None:
         self.steps.append(step)
@@ -23,5 +33,5 @@ class GremlinTraversal:
     def extend(self, steps: list[str]) -> None:
         self.steps.extend(steps)
 
-    def render(self) -> str:
-        return "".join([self.start, *self.steps])
+    def render(self) -> GremlinGroovyString:
+        return GremlinGroovyString("".join([self.start, *self.steps]))

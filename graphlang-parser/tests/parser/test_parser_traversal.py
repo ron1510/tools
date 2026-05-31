@@ -19,7 +19,9 @@ def test_get_traverse_with_edge_resource():
 
     assert isinstance(ast.root, MethodCallExpr)
     assert ast.root.method == "traverse"
-    assert ast.root.args == [StringExpr("users-data-product.user_role_subscriptions")]
+    assert ast.root.args == [
+        StringExpr(value="users-data-product.user_role_subscriptions")
+    ]
 
 
 def test_get_traverse_with_depth_and_direction():
@@ -30,9 +32,9 @@ def test_get_traverse_with_depth_and_direction():
 
     assert isinstance(ast.root, MethodCallExpr)
     assert ast.root.method == "traverse"
-    assert ast.root.kwargs["min_depth"] == NumberExpr(1)
-    assert ast.root.kwargs["max_depth"] == NumberExpr(4)
-    assert ast.root.kwargs["direction"] == StringExpr("any")
+    assert ast.root.kwargs["min_depth"] == NumberExpr(value=1)
+    assert ast.root.kwargs["max_depth"] == NumberExpr(value=4)
+    assert ast.root.kwargs["direction"] == StringExpr(value="any")
 
 
 def test_into_chain():
@@ -52,5 +54,4 @@ def test_into_with_node_resource():
 
     assert isinstance(ast.root, MethodCallExpr)
     assert ast.root.method == "into"
-    assert ast.root.args == [StringExpr("users-data-product.user_roles")]
-
+    assert ast.root.args == [StringExpr(value="users-data-product.user_roles")]

@@ -1,136 +1,143 @@
-"""Typed syntax tree for the Opium expression language.
+"""Typed Pydantic syntax tree for the Opium expression language.
 
-These dataclasses intentionally model syntax, not Gremlin behavior. For example,
-`CallExpr(function="get", ...)` says that the user wrote `get(...)`; it does not
-say whether that call should become `g.V()`, `g.E()`, `hasLabel(...)`, or
-anything else. That separation keeps parsing stable while compiler semantics are
-still being refined.
+The AST models Opium syntax, not Gremlin behavior. For example,
+`CallExpr(function="get", ...)` says the user wrote `get(...)`; it does not say
+whether that should become `g.V()`, `g.E()`, or `hasLabel(...)`.
 
-The nodes are frozen so tests and compiler code can treat an AST as immutable
-input. Lists and dictionaries inside the nodes are still normal Python
-containers because that keeps construction simple and readable; the project does
-not mutate them after construction.
+All nodes are frozen Pydantic models. That gives us:
+
+- explicit typed fields
+- stable equality for tests
+- JSON/model serialization via `model_dump()` / `model_dump_json()`
+- runtime validation when constructing AST nodes
+- a clean future path for API responses or persisted query plans
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
+from typing import Annotated, Literal, TypeAlias
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from opium_parser.opium_names import OpiumCallName
 
 
-@dataclass(frozen=True)
-class Query:
-    """A complete Opium expression.
+class OpiumAstModel(BaseModel):
+    """Common strict configuration for all AST models."""
 
-    The grammar accepts one expression at the top level. The root can be a
-    function call, method-call chain, projection, literal, or comparison AST
-    depending on what the user wrote. The compiler currently supports only roots
-    that can be interpreted as traversals.
-    """
-
-    root: Expr
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+    )
 
 
-class Expr:
+class Expr(OpiumAstModel):
     """Marker base class for all typed Opium expression nodes."""
 
-    pass
 
-
-@dataclass(frozen=True)
 class CallExpr(Expr):
     """A direct function call such as `get('users')` or `eq('_key', 'x')`."""
 
-    function: str
-    args: list[Expr]
-    kwargs: dict[str, Expr]
+    kind: Literal["call"] = "call"
+    function: OpiumCallName
+    args: list[ExprNode] = Field(default_factory=list)
+    kwargs: dict[str, ExprNode] = Field(default_factory=dict)
 
 
-@dataclass(frozen=True)
 class MethodCallExpr(Expr):
-    """A chained method call such as `get('users').limit(10)`.
+    """A chained method call such as `get('users').limit(10)`."""
 
-    Method calls keep their receiver as another expression. A long Opium chain is
-    therefore represented as nested receiver nodes, with the final method at the
-    root of the chain.
-    """
-
-    receiver: Expr
-    method: str
-    args: list[Expr]
-    kwargs: dict[str, Expr]
+    kind: Literal["method_call"] = "method_call"
+    receiver: ExprNode
+    method: OpiumCallName
+    args: list[ExprNode] = Field(default_factory=list)
+    kwargs: dict[str, ExprNode] = Field(default_factory=dict)
 
 
-@dataclass(frozen=True)
 class SubscriptExpr(Expr):
-    """Projection syntax such as `get('users')['_key']`.
+    """Projection syntax such as `get('users')['_key']`."""
 
-    The parser only stores the requested field name here. It does not decide
-    whether the field is a normal property, an Arango system field, or a computed
-    provider-specific value.
-    """
-
-    receiver: Expr
+    kind: Literal["subscript"] = "subscript"
+    receiver: ExprNode
     field: str
 
 
-@dataclass(frozen=True)
 class NameExpr(Expr):
-    """A bare identifier.
+    """A bare identifier, usually a field name in comparison expressions."""
 
-    Bare names are mainly useful in documented comparison forms such as
-    `match(age > 48)`, where `age` is a field name rather than a Python variable.
-    """
-
+    kind: Literal["name"] = "name"
     name: str
 
 
-@dataclass(frozen=True)
 class StringExpr(Expr):
+    kind: Literal["string"] = "string"
     value: str
 
 
-@dataclass(frozen=True)
 class NumberExpr(Expr):
+    kind: Literal["number"] = "number"
     value: int | float
 
 
-@dataclass(frozen=True)
 class BooleanExpr(Expr):
+    kind: Literal["boolean"] = "boolean"
     value: bool
 
 
-@dataclass(frozen=True)
 class NullExpr(Expr):
-    pass
+    kind: Literal["null"] = "null"
 
 
-@dataclass(frozen=True)
 class ListExpr(Expr):
-    items: list[Expr]
+    kind: Literal["list"] = "list"
+    items: list[ExprNode] = Field(default_factory=list)
 
 
-@dataclass(frozen=True)
 class DictExpr(Expr):
-    """A simple dictionary literal.
+    """A simple dictionary literal."""
 
-    Dict literals are parsed so the grammar can represent documented value
-    syntax without becoming arbitrary Python. The compiler currently has no
-    broad semantic use for dictionaries.
-    """
-
-    items: dict[str, Expr]
+    kind: Literal["dict"] = "dict"
+    items: dict[str, ExprNode] = Field(default_factory=dict)
 
 
-@dataclass(frozen=True)
 class BinaryOpExpr(Expr):
-    """A comparison expression such as `age >= 48`.
+    """A comparison expression such as `age >= 48`."""
 
-    Arithmetic is intentionally not represented. If we later support arithmetic,
-    it should be added as explicit AST nodes instead of smuggling Python syntax
-    through the parser.
-    """
-
-    left: Expr
+    kind: Literal["binary_op"] = "binary_op"
+    left: ExprNode
     op: Literal["==", "!=", "<", ">", "<=", ">="]
-    right: Expr
+    right: ExprNode
+
+
+ExprNode: TypeAlias = Annotated[
+    CallExpr
+    | MethodCallExpr
+    | SubscriptExpr
+    | NameExpr
+    | StringExpr
+    | NumberExpr
+    | BooleanExpr
+    | NullExpr
+    | ListExpr
+    | DictExpr
+    | BinaryOpExpr,
+    Field(discriminator="kind"),
+]
+
+
+class Query(OpiumAstModel):
+    """A complete Opium expression."""
+
+    root: ExprNode
+
+
+for _model in (
+    CallExpr,
+    MethodCallExpr,
+    SubscriptExpr,
+    ListExpr,
+    DictExpr,
+    BinaryOpExpr,
+    Query,
+):
+    _model.model_rebuild()

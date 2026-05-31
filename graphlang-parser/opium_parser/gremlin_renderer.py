@@ -16,9 +16,10 @@ from opium_parser.ast_nodes import (
     StringExpr,
 )
 from opium_parser.errors import InvalidOpiumSemanticError
+from opium_parser.types import GremlinGroovyFragment
 
 
-def quote_groovy(value: str) -> str:
+def quote_groovy(value: str) -> GremlinGroovyFragment:
     """Return a single-quoted Groovy string literal.
 
     Opium examples use both single and double quotes, but the compiler normalizes
@@ -27,10 +28,10 @@ def quote_groovy(value: str) -> str:
     """
 
     escaped = value.replace("\\", "\\\\").replace("'", "\\'")
-    return f"'{escaped}'"
+    return GremlinGroovyFragment(f"'{escaped}'")
 
 
-def render_literal(expr: Expr) -> str:
+def render_literal(expr: Expr) -> GremlinGroovyFragment:
     """Render a literal AST node as a Gremlin Groovy literal.
 
     Floats are suffixed with `d` on purpose. Plain Groovy decimal literals such
@@ -43,30 +44,32 @@ def render_literal(expr: Expr) -> str:
         return quote_groovy(expr.value)
     if isinstance(expr, NumberExpr):
         if isinstance(expr.value, float):
-            return f"{expr.value!r}d"
-        return str(expr.value)
+            return GremlinGroovyFragment(f"{expr.value!r}d")
+        return GremlinGroovyFragment(str(expr.value))
     if isinstance(expr, BooleanExpr):
-        return "true" if expr.value else "false"
+        return GremlinGroovyFragment("true" if expr.value else "false")
     if isinstance(expr, NullExpr):
-        return "null"
+        return GremlinGroovyFragment("null")
     if isinstance(expr, ListExpr):
-        return "[" + ", ".join(render_literal(item) for item in expr.items) + "]"
+        return GremlinGroovyFragment(
+            "[" + ", ".join(render_literal(item) for item in expr.items) + "]"
+        )
 
     msg = f"Expected a literal value, got {type(expr).__name__}"
     raise InvalidOpiumSemanticError(msg)
 
 
-def render_label_args(labels: list[str]) -> str:
-    return ", ".join(quote_groovy(label) for label in labels)
+def render_label_args(labels: list[str]) -> GremlinGroovyFragment:
+    return GremlinGroovyFragment(", ".join(quote_groovy(label) for label in labels))
 
 
-def render_predicate(name: str, value: Expr) -> str:
-    return f"P.{name}({render_literal(value)})"
+def render_predicate(name: str, value: Expr) -> GremlinGroovyFragment:
+    return GremlinGroovyFragment(f"P.{name}({render_literal(value)})")
 
 
-def render_within(name: str, value: Expr) -> str:
+def render_within(name: str, value: Expr) -> GremlinGroovyFragment:
     if not isinstance(value, ListExpr):
         msg = f"{name} expects a list literal"
         raise InvalidOpiumSemanticError(msg)
     values = ", ".join(render_literal(item) for item in value.items)
-    return f"P.{name}({values})"
+    return GremlinGroovyFragment(f"P.{name}({values})")

@@ -51,6 +51,27 @@ Compiler tests also include skipped placeholders for semantic areas that are
 specified but not implemented yet, or still awaiting a final semantic decision.
 This keeps missing work visible without making the normal suite red.
 
+## Property Tests
+
+Location:
+
+```text
+tests/property
+```
+
+These tests use Hypothesis for bounded parser/compiler invariants. They do not
+replace exact example tests. They cover generated valid parser inputs, targeted
+invalid syntax, generated compiler-supported inputs, invalid compiler semantics,
+and Pydantic AST serialization round trips.
+
+The default Hypothesis profile is intentionally small enough to run in normal
+`pytest`. For deeper local or CI runs:
+
+```powershell
+$env:OPIUM_HYPOTHESIS_PROFILE='extended'
+python -m pytest tests\property -q
+```
+
 ## E2E Tests
 
 Location:
@@ -90,6 +111,7 @@ subqueries or variables.
 
 ```powershell
 python -m ruff check .
+python -m mypy
 python -m pytest -q
 ```
 

@@ -561,3 +561,320 @@ Current compiler targets the known ArangoDB TinkerPop Provider COMPLEX setup.
 If another provider/config is needed, add a provider profile instead of
 weakening the current assumptions.
 ```
+
+## 15. Pagination And Numeric Argument Validation
+
+### 15.1 Can `skip(...)` and `limit(...)` receive zero?
+
+Examples:
+
+```python
+get('users-data-product.user_roles').skip(0)
+get('users-data-product.user_roles').limit(0)
+```
+
+Questions:
+
+- Should `skip(0)` be valid and return the original stream?
+- Should `limit(0)` be valid and return no rows?
+
+Recommended decision:
+
+```text
+skip(0) and limit(0) are valid. skip(0) keeps the stream unchanged. limit(0)
+returns an empty stream.
+```
+
+### 15.2 Can `skip(...)`, `limit(...)`, `min_depth`, or `max_depth` be negative?
+
+Examples:
+
+```python
+limit(-1)
+skip(-1)
+traverse(max_depth=-1)
+```
+
+Questions:
+
+- Should negative values fail at compile time?
+- Should the parser reject them?
+- Should backend behavior decide?
+
+Recommended decision:
+
+```text
+Negative pagination and depth values are invalid Opium semantics and should fail
+at compile time with InvalidOpiumSemanticError.
+```
+
+### 15.3 Are floats allowed for integer-only arguments?
+
+Examples:
+
+```python
+limit(1.5)
+traverse(max_depth=2.0)
+flatten(depth=2.0)
+```
+
+Recommended decision:
+
+```text
+Reject floats for integer-only arguments even when the value is mathematically
+whole, such as 2.0.
+```
+
+## 16. Traversal Cycles And Path Repetition
+
+### 16.1 Can deep traversal revisit the same vertex?
+
+Example graph:
+
+```text
+A -> B -> A -> C
+```
+
+Query:
+
+```python
+get('nodes', _key='A').traverse_out('edges', max_depth=3).into()
+```
+
+Questions:
+
+- Should traversal revisit `A` if a cycle exists?
+- Should traversal avoid repeated vertices by default?
+- Should repeated paths be returned unless `unique()` is used?
+
+Recommended decision:
+
+```text
+Traversal may revisit vertices and preserve repeated paths by default. Use
+unique() to deduplicate final results. Add a path-cycle prevention feature later
+only if Opium documents one.
+```
+
+### 16.2 Should `traverse_any(...)` immediately walk back over the same edge?
+
+In an undirected/both-direction traversal:
+
+```python
+get('nodes', _key='A').traverse_any('edges', max_depth=2).into()
+```
+
+Questions:
+
+- From `A -> B`, can depth 2 return `A` by walking back over the same edge?
+- Should this be prevented?
+
+Recommended decision:
+
+```text
+traverse_any follows backend both-direction traversal semantics and may return
+walk-back results. Use unique() or future path constraints to control this.
+```
+
+## 17. Regex Details
+
+### 17.1 Is regex search or full-string match?
+
+Example:
+
+```python
+regex_matches('name', 'min')
+```
+
+For value `"Admin"`, should this match?
+
+Questions:
+
+- Is regex treated as "find anywhere"?
+- Or must the pattern match the whole string?
+
+Recommended decision:
+
+```text
+Use the backend regex semantics directly. Callers should use anchors like ^ and
+$ when they need full-string behavior.
+```
+
+### 17.2 What happens when the field is missing or non-string?
+
+Questions:
+
+- Does `regex_matches('missing', 'x')` return false?
+- Does `regex_matches('age', '4')` coerce numbers to strings?
+- Or should non-string fields be invalid?
+
+Recommended decision:
+
+```text
+Missing fields do not match. No Opium-level type coercion is performed for
+non-string fields.
+```
+
+### 17.3 Is `caseInsensitive` the only accepted casing?
+
+Examples:
+
+```python
+regex_matches('name', 'a', caseInsensitive=True)
+regex_matches('name', 'a', case_insensitive=True)
+```
+
+Recommended decision:
+
+```text
+Only caseInsensitive is supported because it is the documented spelling.
+Reject case_insensitive as an unknown keyword.
+```
+
+## 18. Resource And Schema Validation
+
+### 18.1 Should the compiler know valid collection names?
+
+Questions:
+
+- Should `get('typo')` compile and let backend return no rows?
+- Or should compiler validate resources against a schema/catalog?
+
+Recommended decision:
+
+```text
+The compiler is schema-light for now. It compiles resource strings and lets the
+backend determine whether a collection/label exists. Add optional schema
+validation later if the org wants earlier errors.
+```
+
+### 18.2 Should `into(label)` enforce endpoint compatibility?
+
+Example:
+
+```python
+get('users-data-product.user_roles')
+    .traverse_out('permissions-data-product.role_abilities')
+    .into('org-data-product.teams')
+```
+
+Questions:
+
+- Should this compile and return no rows?
+- Or fail because `role_abilities` points to abilities, not teams?
+
+Recommended decision:
+
+```text
+Compile it and let backend filtering return no rows. Optional schema validation
+can warn or fail later.
+```
+
+## 19. Dict Literal Semantics
+
+The parser supports simple dict literals.
+
+Questions:
+
+- Are dict literals actually part of Opium values?
+- Where are they valid?
+- Should the compiler support dict literals in match/select?
+- Or are they parsed only for future compatibility?
+
+Recommended decision:
+
+```text
+Dict literals may parse but are not compiled until a documented Opium method
+needs them.
+```
+
+## 20. Boolean And Null Comparisons
+
+### 20.1 Should `eq(field, None)` match missing fields?
+
+This overlaps with null semantics but is important enough to confirm.
+
+Recommended decision:
+
+```text
+No. is_null(field) is the only operation with missing-field semantics. eq(field,
+None) matches explicit null only.
+```
+
+### 20.2 Should boolean fields compare only to booleans?
+
+Examples:
+
+```python
+match(active=True)
+match(active='true')
+match(active=1)
+```
+
+Recommended decision:
+
+```text
+No Opium-level coercion. active=True is boolean. active='true' is string.
+active=1 is number. Backend stored value determines match behavior.
+```
+
+## 21. Method Ordering
+
+### 21.1 Should all syntactically valid method orders compile?
+
+Examples:
+
+```python
+get('x').count().limit(1)
+get('x').select('_key').traverse()
+get('x')['_key'].traverse()
+```
+
+Questions:
+
+- Should the compiler track current result type and reject impossible chains?
+- Or let Gremlin/backend fail?
+
+Recommended decision:
+
+```text
+The compiler should reject clearly invalid type transitions where practical.
+For example, traversing after projection/count should be invalid Opium
+semantics.
+```
+
+### 21.2 Which methods change the current result type?
+
+Recommended model:
+
+```text
+get -> vertices
+traverse -> edges
+into -> vertices
+select / [] -> maps
+count -> scalar number
+array -> array
+flatten -> stream/items from array
+as_var -> preserves current type
+assign -> preserves current type
+unique -> preserves current type but deduplicates
+skip/limit -> preserves current type
+match -> preserves current type but filters rows
+```
+
+Please approve or correct this model.
+
+## 22. Public API Stability
+
+Questions:
+
+- Should `parse_opium(...)` remain the parser-only public API?
+- Should `compile_opium_to_gremlin(...)` remain string-returning?
+- Should a future bytecode compiler be a separate API rather than changing this
+  function's return type?
+
+Recommended decision:
+
+```text
+Keep parse_opium(...) stable. Keep compile_opium_to_gremlin(...) as a string
+compiler. Add a separate future API for bytecode/Gremlin Python output.
+```

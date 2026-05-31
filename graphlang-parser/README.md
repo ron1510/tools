@@ -1,8 +1,8 @@
 # Opium Parser
 
 `opium-parser` parses the documented Opium query expression subset into a typed
-Python AST. It can also compile the supported AST subset into Gremlin Groovy
-query strings.
+Pydantic AST. It can also compile the supported AST subset into typed Gremlin
+Groovy query strings.
 
 ## Usage
 
@@ -116,6 +116,8 @@ raise `UnsupportedOpiumCompilationError` or `InvalidOpiumSemanticError`.
 Current assumptions and limitations:
 
 - output is a Gremlin Groovy string, not Gremlin Python bytecode
+- the public compiler return type is `GremlinGroovyString`, a domain-specific
+  `NewType` over `str`
 - resources compile as `hasLabel(...)`
 - Arango `_key` is compiled through Gremlin `id()` because the TinkerPop
   provider exposes document ids as `collection/key`, not as a normal `_key`
@@ -158,6 +160,13 @@ python -m pip install -e ".[e2e]"
 $env:OPIUM_RUN_E2E='1'
 $env:GREMLIN_URI='ws://localhost:8182/gremlin'
 python -m pytest tests\e2e -q
+```
+
+Run static typing and linting:
+
+```powershell
+python -m mypy
+python -m ruff check .
 ```
 
 ## Parsing vs Compilation

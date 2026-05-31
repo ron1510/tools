@@ -15,7 +15,7 @@ def test_match_keyword_equality():
 
     assert isinstance(ast.root, MethodCallExpr)
     assert ast.root.method == "match"
-    assert ast.root.kwargs["_key"] == StringExpr("hello")
+    assert ast.root.kwargs["_key"] == StringExpr(value="hello")
 
 
 def test_match_any_keyword_equality():
@@ -25,8 +25,8 @@ def test_match_any_keyword_equality():
 
     assert isinstance(ast.root, MethodCallExpr)
     assert ast.root.method == "match_any"
-    assert ast.root.kwargs["_key"] == StringExpr("hello")
-    assert ast.root.kwargs["name"] == StringExpr("goodbye")
+    assert ast.root.kwargs["_key"] == StringExpr(value="hello")
+    assert ast.root.kwargs["name"] == StringExpr(value="goodbye")
 
 
 def test_match_function_comparison():
@@ -35,7 +35,7 @@ def test_match_function_comparison():
     condition = ast.root.args[0]
     assert isinstance(condition, CallExpr)
     assert condition.function == "eq"
-    assert condition.args == [StringExpr("_key"), StringExpr("hello")]
+    assert condition.args == [StringExpr(value="_key"), StringExpr(value="hello")]
 
 
 def test_match_multiple_comparison_functions():
@@ -44,7 +44,7 @@ def test_match_multiple_comparison_functions():
     )
 
     assert [condition.function for condition in ast.root.args] == ["gt", "lte"]
-    assert ast.root.args[0].args[1] == NumberExpr(48)
+    assert ast.root.args[0].args[1] == NumberExpr(value=48)
 
 
 def test_match_binary_comparison():
@@ -52,9 +52,9 @@ def test_match_binary_comparison():
 
     first = ast.root.args[0]
     assert isinstance(first, BinaryOpExpr)
-    assert first.left == NameExpr("age")
+    assert first.left == NameExpr(name="age")
     assert first.op == ">"
-    assert first.right == NumberExpr(48)
+    assert first.right == NumberExpr(value=48)
 
 
 def test_match_ne():
@@ -76,9 +76,9 @@ def test_match_value_in():
     assert condition.function == "value_in"
     assert isinstance(condition.args[1], ListExpr)
     assert condition.args[1].items == [
-        StringExpr("one"),
-        StringExpr("two"),
-        StringExpr("three"),
+        StringExpr(value="one"),
+        StringExpr(value="two"),
+        StringExpr(value="three"),
     ]
 
 
@@ -116,4 +116,3 @@ def test_match_all_call():
     assert isinstance(ast.root, CallExpr)
     assert ast.root.function == "match_all"
     assert len(ast.root.args) == 2
-

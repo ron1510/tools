@@ -19,7 +19,7 @@ Server.
 ```text
 Opium source text
   -> Lark parser
-  -> syntax-first Opium AST
+  -> syntax-first Pydantic Opium AST
   -> semantic compiler
   -> Gremlin traversal string
   -> optional external Gremlin Server execution
@@ -54,6 +54,10 @@ The parser returns:
 ```python
 Query(root=...)
 ```
+
+The AST nodes are frozen Pydantic models. They support `model_dump()`,
+`model_dump_json()`, and `model_validate(...)`, so query ASTs can be serialized
+without custom ad hoc conversion code.
 
 Important AST node types:
 
@@ -91,8 +95,8 @@ Output:
 g.V().hasLabel('users-data-product.user_roles').limit(100)
 ```
 
-The compiler currently returns Gremlin Groovy strings. It does not return
-Gremlin Python bytecode.
+The compiler currently returns `GremlinGroovyString`, a domain-specific
+`NewType` over `str`. It does not return Gremlin Python bytecode.
 
 ## ArangoDB Provider Assumptions
 

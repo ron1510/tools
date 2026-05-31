@@ -4,6 +4,7 @@ from opium_parser.ast_nodes import (
     CallExpr,
     DictExpr,
     Expr,
+    ExprNode,
     ListExpr,
     MethodCallExpr,
     NameExpr,
@@ -15,6 +16,7 @@ from opium_parser.ast_nodes import (
 )
 from opium_parser.compiler import compile_ast_to_gremlin, compile_opium_to_gremlin
 from opium_parser.parser import parse_opium
+from opium_parser.types import GremlinGroovyFragment, GremlinGroovyString
 
 __all__ = [
     "BinaryOpExpr",
@@ -22,6 +24,7 @@ __all__ = [
     "CallExpr",
     "DictExpr",
     "Expr",
+    "ExprNode",
     "ListExpr",
     "MethodCallExpr",
     "NameExpr",
@@ -32,5 +35,7 @@ __all__ = [
     "SubscriptExpr",
     "compile_ast_to_gremlin",
     "compile_opium_to_gremlin",
+    "GremlinGroovyFragment",
+    "GremlinGroovyString",
     "parse_opium",
 ]

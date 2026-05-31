@@ -6,7 +6,7 @@ def test_get_skip_chain():
 
     assert isinstance(ast.root, MethodCallExpr)
     assert ast.root.method == "skip"
-    assert ast.root.args == [NumberExpr(100)]
+    assert ast.root.args == [NumberExpr(value=100)]
 
 
 def test_get_limit_chain():
@@ -14,7 +14,7 @@ def test_get_limit_chain():
 
     assert isinstance(ast.root, MethodCallExpr)
     assert ast.root.method == "limit"
-    assert ast.root.args == [NumberExpr(100)]
+    assert ast.root.args == [NumberExpr(value=100)]
 
     receiver = ast.root.receiver
     assert isinstance(receiver, CallExpr)
@@ -28,4 +28,3 @@ def test_skip_limit_chain():
     assert ast.root.method == "limit"
     assert isinstance(ast.root.receiver, MethodCallExpr)
     assert ast.root.receiver.method == "skip"
-

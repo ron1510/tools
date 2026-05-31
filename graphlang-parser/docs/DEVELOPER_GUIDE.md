@@ -7,9 +7,9 @@ organization environment, review it, change it, and know which tests prove what.
 
 The project has two jobs:
 
-1. Parse documented Opium expressions into a typed Python AST.
-2. Compile the supported AST subset into Gremlin Groovy strings for ArangoDB
-   TinkerPop Provider in `COMPLEX` mode.
+1. Parse documented Opium expressions into a typed Pydantic AST.
+2. Compile the supported AST subset into `GremlinGroovyString` values for
+   ArangoDB TinkerPop Provider in `COMPLEX` mode.
 
 The package does not execute Opium expressions. It does not evaluate Python. It
 does not connect to ArangoDB or Gremlin Server during normal library use.
@@ -103,6 +103,7 @@ python -m pip install -e ".[dev,e2e]"
 
 ```powershell
 python -m ruff check .
+python -m mypy
 python -m pytest -q
 ```
 
@@ -178,8 +179,8 @@ Typical steps:
 
 1. Update `grammar.lark`.
 2. Update `transformer.py` if a new parse tree shape needs conversion.
-3. Add or update dataclasses in `ast_nodes.py` only if the current AST cannot
-   represent the syntax cleanly.
+3. Add or update Pydantic models in `ast_nodes.py` only if the current AST
+   cannot represent the syntax cleanly.
 4. Add AST shape tests under `tests/parser`.
 5. Add invalid syntax tests if the feature introduces new rejection paths.
 
@@ -200,6 +201,22 @@ Typical steps:
 
 Compiler unit tests are intentionally string-based. That makes generated
 Gremlin easy to review. It also makes provider-specific decisions visible.
+
+The compiler APIs return `GremlinGroovyString`, a `NewType` over `str`. Runtime
+behavior remains string-like, but strict mypy can distinguish generated Gremlin
+Groovy from arbitrary text.
+
+## Static Typing Policy
+
+The package is checked with strict mypy:
+
+```powershell
+python -m mypy
+```
+
+The mypy config currently checks `opium_parser` in strict mode. Tests are not
+strict-typed yet because many tests intentionally exercise runtime shapes and
+external e2e behavior.
 
 ## Error Handling Rules
 
@@ -274,4 +291,3 @@ For a code review, read in this order:
 
 That order makes the code easier to criticize because you first understand the
 language contract, then the implementation choices, then the tests.
-

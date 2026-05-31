@@ -6,7 +6,7 @@ def test_as_var():
 
     assert isinstance(ast.root, MethodCallExpr)
     assert ast.root.method == "as_var"
-    assert ast.root.args == [StringExpr("user_role")]
+    assert ast.root.args == [StringExpr(value="user_role")]
 
 
 def test_assign_nested_subquery():
@@ -33,7 +33,6 @@ def test_select_with_variable():
 
     assert isinstance(ast.root, MethodCallExpr)
     assert ast.root.method == "select"
-    assert ast.root.args == [StringExpr("_key")]
+    assert ast.root.args == [StringExpr(value="_key")]
     assert isinstance(ast.root.kwargs["neighbors"], CallExpr)
     assert ast.root.kwargs["neighbors"].function == "var"
-

@@ -9,7 +9,7 @@ def test_get_with_resource():
 
     assert isinstance(ast.root, CallExpr)
     assert ast.root.function == "get"
-    assert ast.root.args == [StringExpr("users-data-product.user_roles")]
+    assert ast.root.args == [StringExpr(value="users-data-product.user_roles")]
     assert ast.root.kwargs == {}
 
 
@@ -18,8 +18,8 @@ def test_get_with_resource_and_key():
 
     assert isinstance(ast.root, CallExpr)
     assert ast.root.function == "get"
-    assert ast.root.args[0] == StringExpr("users-data-product.user_roles")
-    assert ast.root.kwargs["_key"] == StringExpr("admin")
+    assert ast.root.args[0] == StringExpr(value="users-data-product.user_roles")
+    assert ast.root.kwargs["_key"] == StringExpr(value="admin")
 
 
 def test_get_with_multiple_sources():
@@ -29,8 +29,8 @@ def test_get_with_multiple_sources():
 
     assert isinstance(ast.root, CallExpr)
     assert ast.root.args == [
-        StringExpr("users-data-product.user_roles"),
-        StringExpr("permissions-data-product.abilities"),
+        StringExpr(value="users-data-product.user_roles"),
+        StringExpr(value="permissions-data-product.abilities"),
     ]
 
 
@@ -38,8 +38,8 @@ def test_literals():
     ast = parse_opium("get('x', active=True, deleted=False, score=1.5, empty=None)")
 
     assert isinstance(ast.root, CallExpr)
-    assert ast.root.args == [StringExpr("x")]
-    assert ast.root.kwargs["score"] == NumberExpr(1.5)
+    assert ast.root.args == [StringExpr(value="x")]
+    assert ast.root.kwargs["score"] == NumberExpr(value=1.5)
     assert "active" in ast.root.kwargs
     assert "deleted" in ast.root.kwargs
     assert "empty" in ast.root.kwargs

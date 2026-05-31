@@ -58,8 +58,8 @@ Why it matters here:
 Read:
 
 - Articles about ASTs in compilers/interpreters
-- Python `dataclasses` documentation
-- Python typing basics, especially unions and literals
+- Pydantic v2 model documentation
+- Python typing basics, especially unions, literals, and `NewType`
 
 Repo files to study:
 
