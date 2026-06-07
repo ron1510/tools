@@ -30,6 +30,7 @@ from tests.fixtures.e2e_graph import (
     TEAM,
     TEAM_HIERARCHY,
     USER,
+    USER_ROLE_ASSIGNMENT,
     VERTEX_LABELS,
 )
 
@@ -90,32 +91,22 @@ def test_get_counts_and_multi_source_get(client):
     assert run_query(client, f"get('{USER}').count()") == [COUNTS[USER]]
     assert run_query(client, f"get('{ABILITY}').count()") == [COUNTS[ABILITY]]
     assert run_query(client, f"get('{TEAM}').count()") == [COUNTS[TEAM]]
-    assert run_query(client, f"get('{DEPARTMENT}').count()") == [
-        COUNTS[DEPARTMENT]
-    ]
+    assert run_query(client, f"get('{DEPARTMENT}').count()") == [COUNTS[DEPARTMENT]]
     assert run_query(client, f"get('{PROJECT}').count()") == [COUNTS[PROJECT]]
     assert run_query(client, f"get('{SERVICE}').count()") == [COUNTS[SERVICE]]
     assert run_query(client, f"get('{INCIDENT}').count()") == [COUNTS[INCIDENT]]
     assert run_query(client, f"get('{REGION}').count()") == [COUNTS[REGION]]
-    assert run_query(client, f"get('{ENVIRONMENT}').count()") == [
-        COUNTS[ENVIRONMENT]
-    ]
+    assert run_query(client, f"get('{ENVIRONMENT}').count()") == [COUNTS[ENVIRONMENT]]
     assert run_query(client, f"get('{DOCUMENT}').count()") == [COUNTS[DOCUMENT]]
     assert run_query(client, f"get('{ROLE}', '{ABILITY}').count()") == [
         COUNTS[ROLE] + COUNTS[ABILITY]
     ]
 
 
-def test_vertex_system_fields_and_projection_maps(client):
-    assert run_query(client, f"get('{ROLE}', _key='admin')['_key']") == [
-        {"_key": "admin"}
-    ]
-    assert run_query(client, f"get('{ROLE}', _key='admin')['_id']") == [
-        {"_id": f"{ROLE}/admin"}
-    ]
-    assert run_query(client, f"get('{ROLE}', _key='admin')['missing_field']") == [
-        {"missing_field": None}
-    ]
+def test_vertex_system_fields_projection_and_select_shape(client):
+    assert run_query(client, f"get('{ROLE}', _key='admin')['_key']") == ["admin"]
+    assert run_query(client, f"get('{ROLE}', _key='admin')['_id']") == [f"{ROLE}/admin"]
+    assert run_query(client, f"get('{ROLE}', _key='admin')['missing_field']") == [None]
     assert run_query(client, f"get('{ROLE}', _key='admin').select('_key', 'name')") == [
         {"_key": "admin", "name": "Admin"}
     ]
@@ -135,11 +126,11 @@ def test_keyword_match_and_comparison_predicates(client):
         client,
         f"get('{ROLE}').match(gt('age', 48), lte('age', 85)).count()",
     ) == [2]
-    assert sorted_projected(run_query(client, score_query), "_key") == [
+    assert sorted(run_query(client, score_query)) == [
         "admin",
         "owner",
     ]
-    assert sorted_projected(run_query(client, severity_query), "_key") == [
+    assert sorted(run_query(client, severity_query)) == [
         "approve",
         "read",
         "write",
@@ -150,14 +141,9 @@ def test_containment_match_any_regex_and_null(client):
     value_in_query = (
         f"get('{ROLE}').match(value_in('_key', ['admin', 'viewer']))['_key']"
     )
-    nin_query = (
-        f"get('{ROLE}').match(nin('_key', ['admin', 'viewer']))['_key']"
-    )
+    nin_query = f"get('{ROLE}').match(nin('_key', ['admin', 'viewer']))['_key']"
     match_any_query = (
-        f"get('{ROLE}').match_any("
-        "eq('_key', 'admin'), "
-        "eq('_key', 'viewer')"
-        ")['_key']"
+        f"get('{ROLE}').match_any(eq('_key', 'admin'), eq('_key', 'viewer'))['_key']"
     )
     regex_query = (
         f"get('{ROLE}').match("
@@ -165,22 +151,10 @@ def test_containment_match_any_regex_and_null(client):
         ")['_key']"
     )
 
-    assert sorted_projected(
-        run_query(client, value_in_query),
-        "_key",
-    ) == ["admin", "viewer"]
-    assert sorted_projected(
-        run_query(client, nin_query),
-        "_key",
-    ) == ["auditor", "editor", "owner"]
-    assert sorted_projected(
-        run_query(client, match_any_query),
-        "_key",
-    ) == ["admin", "viewer"]
-    assert sorted_projected(
-        run_query(client, regex_query),
-        "_key",
-    ) == ["admin", "auditor"]
+    assert sorted(run_query(client, value_in_query)) == ["admin", "viewer"]
+    assert sorted(run_query(client, nin_query)) == ["auditor", "editor", "owner"]
+    assert sorted(run_query(client, match_any_query)) == ["admin", "viewer"]
+    assert sorted(run_query(client, regex_query)) == ["admin", "auditor"]
     assert run_query(
         client,
         f"get('{ROLE}').match(is_null('missing_field')).count()",
@@ -188,13 +162,12 @@ def test_containment_match_any_regex_and_null(client):
 
 
 def test_role_to_ability_traversal_and_unique(client):
-    assert sorted_projected(
+    assert sorted(
         run_query(
             client,
             f"get('{ROLE}', _key='admin').traverse_out('{ROLE_ABILITY}')"
             f".into('{ABILITY}')['_key']",
-        ),
-        "_key",
+        )
     ) == ["approve", "delete", "write"]
     assert run_query(
         client,
@@ -204,21 +177,19 @@ def test_role_to_ability_traversal_and_unique(client):
 
 
 def test_subscription_traversal_directions_and_any(client):
-    assert sorted_projected(
+    assert sorted(
         run_query(
             client,
             f"get('{ROLE}', _key='admin').traverse_in('{SUBSCRIPTION}')"
             f".into('{ROLE}')['_key']",
-        ),
-        "_key",
+        )
     ) == ["auditor", "editor"]
-    assert sorted_projected(
+    assert sorted(
         run_query(
             client,
             f"get('{ROLE}', _key='admin').traverse_any('{SUBSCRIPTION}')"
             f".into('{ROLE}')['_key']",
-        ),
-        "_key",
+        )
     ) == ["auditor", "editor", "owner"]
 
 
@@ -243,14 +214,13 @@ def test_user_team_memberships_and_team_hierarchy(client):
         client,
         f"get('{USER}', _key='alice').traverse_out('{MEMBERSHIP}')"
         f".into('{TEAM}')['_key']",
-    ) == [{"_key": "platform"}]
-    assert sorted_projected(
+    ) == ["platform"]
+    assert sorted(
         run_query(
             client,
             f"get('{TEAM}', _key='executive').traverse_in('{TEAM_HIERARCHY}')"
             f".into('{TEAM}')['_key']",
-        ),
-        "_key",
+        )
     ) == ["platform", "security"]
 
 
@@ -266,23 +236,16 @@ def test_deep_traversal_vertices_and_edges(client):
         f".into('{TEAM}')['_key']"
     )
 
-    assert sorted_projected(
-        run_query(client, deep_roles_query),
-        "_key",
-    ) == ["admin", "editor", "owner"]
-    assert sorted_projected(
+    assert sorted(run_query(client, deep_roles_query)) == ["admin", "editor", "owner"]
+    assert sorted(
         run_query(
             client,
             f"get('{ROLE}', _key='viewer').traverse_out("
             f"'{SUBSCRIPTION}', min_depth=2, max_depth=3"
             ")['_key']",
-        ),
-        "_key",
+        )
     ) == ["admin-to-owner", "editor-to-admin"]
-    assert sorted_projected(
-        run_query(client, deep_team_query),
-        "_key",
-    ) == ["executive", "platform"]
+    assert sorted(run_query(client, deep_team_query)) == ["executive", "platform"]
 
 
 def test_skip_limit_count_and_projection_shape(client):
@@ -330,7 +293,113 @@ def test_array_flatten_smoke_for_current_behavior(client):
         f".into('{ABILITY}')['_key']).flatten()",
     )
 
-    assert sorted_projected(result, "_key") == ["approve", "delete", "write"]
+    assert sorted(result) == ["approve", "delete", "write"]
+
+
+def test_array_replaces_current_row_with_per_row_subquery_result(client):
+    rows = run_query(
+        client,
+        f"get('{ROLE}', _key='admin')"
+        f".array(traverse_out('{ROLE_ABILITY}').into('{ABILITY}')['_key'])",
+    )
+
+    assert len(rows) == 1
+    assert sorted(rows[0]) == ["approve", "delete", "write"]
+
+
+def test_array_empty_subquery_keeps_row_as_empty_array(client):
+    rows = run_query(
+        client,
+        f"get('{ROLE}', _key='auditor')"
+        f".array(traverse_out('{ROLE_ABILITY}').into('{ABILITY}')['_key'])",
+    )
+
+    assert rows == [[]]
+
+
+def test_array_flatten_across_multiple_current_rows(client):
+    rows = run_query(
+        client,
+        f"get('{ROLE}').match(value_in('_key', ['admin', 'editor', 'viewer']))"
+        f".array(traverse_out('{ROLE_ABILITY}').into('{ABILITY}')['_key'])"
+        ".flatten()",
+    )
+
+    assert sorted(rows) == ["approve", "delete", "read", "write", "write"]
+
+
+def test_array_can_collect_selected_edge_documents(client):
+    rows = run_query(
+        client,
+        f"get('{ROLE}', _key='admin')"
+        f".array(traverse_out('{ROLE_ABILITY}').select('_key', '_from', '_to'))",
+    )
+
+    assert len(rows) == 1
+    edge_rows = sorted(rows[0], key=lambda row: row["_key"])
+    assert edge_rows == [
+        {
+            "_key": "admin-approve",
+            "_from": f"{ROLE}/admin",
+            "_to": f"{ABILITY}/approve",
+        },
+        {
+            "_key": "admin-delete",
+            "_from": f"{ROLE}/admin",
+            "_to": f"{ABILITY}/delete",
+        },
+        {
+            "_key": "admin-write",
+            "_from": f"{ROLE}/admin",
+            "_to": f"{ABILITY}/write",
+        },
+    ]
+
+
+def test_array_with_deep_traversal_subquery(client):
+    rows = run_query(
+        client,
+        f"get('{TEAM}', _key='qa')"
+        f".array(traverse_out('{TEAM_HIERARCHY}', max_depth=2)"
+        f".into('{TEAM}')['_key'])",
+    )
+
+    assert len(rows) == 1
+    assert sorted(rows[0]) == ["executive", "platform"]
+
+
+def test_assign_preserves_current_rows_for_count(client):
+    assert run_query(
+        client,
+        f"get('{ROLE}').assign("
+        f"traverse_out('{ROLE_ABILITY}').into('{ABILITY}'), "
+        "'ability_neighbors'"
+        ").count()",
+    ) == [COUNTS[ROLE]]
+
+
+def test_assign_preserves_current_rows_for_later_select(client):
+    rows = run_query(
+        client,
+        f"get('{ROLE}', _key='admin').assign("
+        f"traverse_out('{ROLE_ABILITY}').into('{ABILITY}'), "
+        "'ability_neighbors'"
+        ").select('_key', 'name')",
+    )
+
+    assert rows == [{"_key": "admin", "name": "Admin"}]
+
+
+def test_assign_preserves_current_rows_for_later_traversal(client):
+    rows = run_query(
+        client,
+        f"get('{USER}', _key='alice').assign("
+        f"traverse_out('{MEMBERSHIP}').into('{TEAM}'), "
+        "'teams'"
+        f").traverse_out('{USER_ROLE_ASSIGNMENT}').into('{ROLE}')['_key']",
+    )
+
+    assert sorted(rows) == ["admin", "owner"]
 
 
 def test_large_graph_department_project_service_dependency_chain(client):
@@ -349,7 +418,7 @@ def test_large_graph_department_project_service_dependency_chain(client):
         "['_key']"
     )
 
-    assert sorted_projected(run_query(client, query), "_key") == [
+    assert sorted(run_query(client, query)) == [
         "service-1",
         "service-11",
         "service-2",
@@ -414,12 +483,14 @@ def test_default_full_document_result_shape(client):
 
 @pytest.mark.skip(reason="assign/select computed-column semantics are unresolved")
 def test_assign_select_computed_column_placeholder(client):
-    run_query(
+    rows = run_query(
         client,
         f"get('{ROLE}', _key='admin').assign("
         f"traverse_in('{SUBSCRIPTION}').into('{ROLE}'), 'neighborhood'"
         ").select('_key', neighbors=var('neighborhood')['_key'])",
     )
+
+    assert rows == [{"_key": "admin", "neighbors": ["auditor", "editor"]}]
 
 
 def test_match_subquery_operand_expected_result(client):
@@ -430,7 +501,7 @@ def test_match_subquery_operand_expected_result(client):
         "['_key']",
     )
 
-    assert sorted_projected(rows, "_key") == ["admin", "editor"]
+    assert sorted(rows) == ["admin", "editor"]
 
 
 def test_match_subquery_operand_with_value_in_expected_result(client):
@@ -442,7 +513,7 @@ def test_match_subquery_operand_with_value_in_expected_result(client):
         ")['_key']",
     )
 
-    assert sorted_projected(rows, "_key") == ["admin", "viewer"]
+    assert sorted(rows) == ["admin", "viewer"]
 
 
 def test_match_deep_traversal_operand_expected_result(client):
@@ -454,17 +525,16 @@ def test_match_deep_traversal_operand_expected_result(client):
         ")['_key']",
     )
 
-    assert sorted_projected(rows, "_key") == ["platform", "qa", "security"]
+    assert sorted(rows) == ["platform", "qa", "security"]
 
 
 def test_match_variable_operand_expected_result(client):
     rows = run_query(
         client,
-        f"get('{ROLE}').as_var('role')"
-        ".match(eq(var('role')['_key'], 'admin'))['_key']",
+        f"get('{ROLE}').as_var('role').match(eq(var('role')['_key'], 'admin'))['_key']",
     )
 
-    assert rows == [{"_key": "admin"}]
+    assert rows == ["admin"]
 
 
 def test_is_null_matches_missing_or_explicit_null_expected_result(client):
@@ -474,7 +544,6 @@ def test_is_null_matches_missing_or_explicit_null_expected_result(client):
     ) == [5]
 
 
-@pytest.mark.skip(reason="Traversal aggregation inside match needs semantics")
 def test_match_traversal_count_at_least_three_expected_result(client):
     rows = run_query(
         client,
@@ -483,4 +552,39 @@ def test_match_traversal_count_at_least_three_expected_result(client):
         ")['_key']",
     )
 
-    assert rows == [{"_key": "admin"}]
+    assert rows == ["admin"]
+
+
+def test_match_traversal_count_zero_expected_result(client):
+    rows = run_query(
+        client,
+        f"get('{ROLE}').match("
+        f"traverse_out('{ROLE_ABILITY}').into('{ABILITY}').count() == 0"
+        ")['_key']",
+    )
+
+    assert sorted(rows) == ["auditor", "owner"]
+
+
+def test_match_unique_traversal_count_expected_result(client):
+    rows = run_query(
+        client,
+        f"get('{SERVICE}').match("
+        f"traverse_out('{SERVICE_DEPENDENCY}').into('{SERVICE}')"
+        ".unique()"
+        ".count() >= 2"
+        ")['_key']",
+    )
+
+    assert sorted(rows) == ["service-0", "service-2", "service-5"]
+
+
+def test_match_function_style_traversal_count_expected_result(client):
+    rows = run_query(
+        client,
+        f"get('{ROLE}').match("
+        f"gt(traverse_out('{ROLE_ABILITY}').into('{ABILITY}').count(), 1)"
+        ")['_key']",
+    )
+
+    assert rows == ["admin"]

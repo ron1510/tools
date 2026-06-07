@@ -7,6 +7,8 @@ literals, and predicates into Gremlin Groovy text.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from opium_parser.ast_nodes import (
     BooleanExpr,
     Expr,
@@ -56,10 +58,15 @@ def render_literal(expr: Expr) -> GremlinGroovyFragment:
         )
 
     msg = f"Expected a literal value, got {type(expr).__name__}"
-    raise InvalidOpiumSemanticError(msg)
+    raise InvalidOpiumSemanticError(
+        msg,
+        code="semantic.invalid_argument_type",
+        actual=type(expr).__name__,
+        expected=("literal",),
+    )
 
 
-def render_label_args(labels: list[str]) -> GremlinGroovyFragment:
+def render_label_args(labels: Sequence[str]) -> GremlinGroovyFragment:
     return GremlinGroovyFragment(", ".join(quote_groovy(label) for label in labels))
 
 
@@ -70,6 +77,11 @@ def render_predicate(name: str, value: Expr) -> GremlinGroovyFragment:
 def render_within(name: str, value: Expr) -> GremlinGroovyFragment:
     if not isinstance(value, ListExpr):
         msg = f"{name} expects a list literal"
-        raise InvalidOpiumSemanticError(msg)
+        raise InvalidOpiumSemanticError(
+            msg,
+            code="semantic.invalid_argument_type",
+            expected=("list",),
+            actual=type(value).__name__,
+        )
     values = ", ".join(render_literal(item) for item in value.items)
     return GremlinGroovyFragment(f"P.{name}({values})")

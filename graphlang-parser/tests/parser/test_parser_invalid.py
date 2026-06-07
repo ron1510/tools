@@ -47,4 +47,3 @@ def test_positional_after_keyword_is_rejected():
 def test_numeric_subscript_is_rejected():
     with pytest.raises(UnsupportedOpiumSyntaxError):
         parse_opium("get('x')[0]")
-

@@ -205,7 +205,40 @@ def compiler_supported_sources() -> SearchStrategy[str]:
         st.integers(min_value=0, max_value=20),
         st.integers(min_value=1, max_value=20),
     )
-    return st.one_of(traversal, match_key, match_numeric, select, pagination)
+    array_flatten = st.builds(
+        lambda resource, edge, depth: (
+            f"get({resource}).array(traverse_out({edge}).into()['_key'])"
+            f".flatten(depth={depth})"
+        ),
+        resource_sources(),
+        edge_sources(),
+        st.integers(min_value=0, max_value=3),
+    )
+    assign_count = st.builds(
+        lambda resource, edge: (
+            f"get({resource}).assign(traverse_any({edge}).into(), 'neighbors').count()"
+        ),
+        resource_sources(),
+        edge_sources(),
+    )
+    assign_select = st.builds(
+        lambda resource, edge: (
+            f"get({resource}).assign(traverse_out({edge}).into(), 'neighbors')"
+            ".select('_key')"
+        ),
+        resource_sources(),
+        edge_sources(),
+    )
+    return st.one_of(
+        traversal,
+        match_key,
+        match_numeric,
+        select,
+        pagination,
+        array_flatten,
+        assign_count,
+        assign_select,
+    )
 
 
 def invalid_parser_sources() -> SearchStrategy[tuple[str, ParserError]]:

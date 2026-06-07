@@ -18,7 +18,8 @@ What is proven:
   Provider in `COMPLEX` mode
 - collection labels and edge labels were verified live against the provider
 - `_key` behavior was corrected based on live provider output
-- projection now returns maps/documents rather than raw scalar values
+- subscript projection now returns raw scalar values, while `select(...)`
+  returns maps/documents
 - deep traversal is supported for documented `min_depth`/`max_depth` behavior
 - live e2e tests cover a richer graph with role, user, ability, team, membership,
   hierarchy, subscription, role-ability, department, project, service, incident,
@@ -27,6 +28,8 @@ What is proven:
   compatibility
 - match operands can now be field names, current-row subqueries, or row-scoped
   variables for the tested comparison forms
+- traversal aggregation inside `match(...)` is supported for `count()` and
+  `unique().count()` numeric comparisons
 - `is_null(field)` now matches missing fields or explicit null values in the
   live provider test graph
 
@@ -60,16 +63,16 @@ g.V().hasLabel('collection').hasId(TextP.endingWith('/admin'))
 
 Status: unit-tested and e2e-tested.
 
-Projection returns maps:
-
-```python
-[{"_key": "admin"}]
-```
-
-not raw scalar lists:
+Subscript projection returns scalar values:
 
 ```python
 ["admin"]
+```
+
+Use `select('_key')` when a map/document shape is required:
+
+```python
+[{"_key": "admin"}]
 ```
 
 ### `traverse`, `traverse_any`, `traverse_out`, `traverse_in`
@@ -229,7 +232,7 @@ Compilation:
 - `_key` projects from `id()` and strips the collection prefix
 - `_id` projects the full `collection/key` id
 - other fields compile through `coalesce(values(field), constant(null))`
-- the result shape is a map/document containing the projected field
+- the result shape is a scalar value for each current result
 
 Status: unit-tested and e2e-tested for traversal result projection.
 
@@ -256,6 +259,8 @@ match(nin('_key', ['one', 'two']))
 match(is_null('field'))
 match(regex_matches('name', '^a', caseInsensitive=True))
 match_any(eq('_key', 'admin'), eq('_key', 'viewer'))
+match(traverse_out('edge').into('node').count() >= 3)
+match(traverse_out('edge').into('node').unique().count() >= 3)
 ```
 
 Compilation uses:
@@ -273,6 +278,8 @@ Limitations:
 
 - deeply nested condition operands beyond the tested subquery/variable shapes
   may still need expansion
+- aggregation inside match is limited to numeric comparisons against `count()`
+  and `unique().count()`
 - regex assumes `TextP.regex(...)` is available in the target Gremlin runtime
 
 ## Currently Unsupported Documented Areas
@@ -284,15 +291,15 @@ The transcript mentions that condition arguments can be:
 - a literal value
 - a specific field name
 
-The compiler supports literals and field names well. It does not yet fully
-support every possible nested subquery/variable condition shape.
+The compiler supports literals, field names, current-row traversal field
+predicates, row-scoped variable predicates, and traversal `count()` predicates
+for the tested shapes. It does not yet fully support every possible nested
+subquery/variable condition shape.
 
 `array` and `flatten` are implemented for the simple local traversal shapes now
-covered by tests, but the precise nested/per-row semantics still need a stronger
-language definition before treating them as complete.
-
-`flatten(depth=...)` semantics are now defined, but `array(subquery)` row scope
-and replacement-vs-attachment behavior are still open.
+covered by tests. The transcript supports per-row array replacement semantics,
+but deeper interactions with `assign(...)`, variables, and nested arrays still
+need more live validation before treating them as complete.
 
 ## Undocumented Keywords
 

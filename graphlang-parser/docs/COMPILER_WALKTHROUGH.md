@@ -76,7 +76,7 @@ So:
 ```text
 CallExpr get       -> g.V().hasLabel('users')
 MethodCall limit  -> .limit(10)
-Subscript _key    -> .project('_key').by(...)
+Subscript _key    -> .id().map{...strip collection prefix...}
 ```
 
 ## Root Traversals vs Child Traversals
@@ -231,18 +231,16 @@ Subscript projection:
 get('users')['_key']
 ```
 
-returns maps:
+returns scalar values:
 
 ```python
-[{"_key": "admin"}]
+["admin"]
 ```
-
-not raw scalars.
 
 Compiler shape:
 
 ```groovy
-.project('_key').by(...)
+.id().map{it.get().substring(it.get().lastIndexOf('/') + 1)}
 ```
 
 Projection handling:
@@ -357,6 +355,35 @@ g.V().hasLabel('roles')
 The child traversal starts from the current row. The filter keeps only rows for
 which that child traversal finds a matching result.
 
+Traversal aggregation inside `match(...)` uses the same current-row child
+traversal model:
+
+```python
+get('roles')
+  .match(
+    traverse_out('role_abilities')
+      .into('abilities')
+      .count() >= 3
+  )
+```
+
+Gremlin shape:
+
+```groovy
+g.V().hasLabel('roles')
+ .filter(
+   __.outE('role_abilities')
+     .otherV()
+     .hasLabel('abilities')
+     .count()
+     .is(P.gte(3))
+ )
+```
+
+`count()` counts raw subquery results. `unique().count()` adds `dedup()` before
+`count()`. Empty subqueries count as `0`, and count comparisons require numeric
+literals.
+
 ## Match Variable Operands
 
 Opium:
@@ -427,7 +454,7 @@ unfold().unfold()...
 ```
 
 This supports simple shapes. Complex row-scope and interaction with `assign`
-still require final semantic decisions.
+still require more live validation.
 
 ## `assign(...)`
 
@@ -479,4 +506,3 @@ For array/assign:
 - `_apply_method`, `array` branch
 - `_apply_method`, `flatten` branch
 - `_apply_assign`
-

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Final, NewType
 
-from opium_parser.errors import UnsupportedOpiumSyntaxError
+from opium_parser.errors import UnsupportedOpiumSyntaxError, error_context
 
 OpiumCallName = NewType("OpiumCallName", str)
 
@@ -44,5 +44,12 @@ ALLOWED_CALL_NAMES: Final[frozenset[str]] = frozenset(
 def parse_call_name(name: str) -> OpiumCallName:
     if name not in ALLOWED_CALL_NAMES:
         msg = f"Unsupported Opium function or method: {name}"
-        raise UnsupportedOpiumSyntaxError(msg)
+        raise UnsupportedOpiumSyntaxError(
+            msg,
+            code="syntax.unsupported_call",
+            stage="transform",
+            expected=tuple(sorted(ALLOWED_CALL_NAMES)),
+            actual=name,
+            context=error_context(name=name),
+        )
     return OpiumCallName(name)

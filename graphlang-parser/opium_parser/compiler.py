@@ -32,14 +32,16 @@ from opium_parser.compiler_common import (
     compile_key_filter,
     deep_repeat_body,
     direction,
+    parse_depth_range,
     parse_empty_method_call,
+    parse_flatten_depth,
+    parse_limit_count,
     parse_no_positional_args,
-    parse_optional_int_kwarg,
     parse_single_expr_arg,
-    parse_single_int_arg,
-    parse_single_string_arg,
+    parse_skip_count,
     parse_string_literal,
     parse_supported_kwargs,
+    parse_variable_name_arg,
     string_args,
 )
 from opium_parser.compiler_match import apply_match
@@ -132,11 +134,21 @@ def _compile_call(call: CallExpr, *, child: bool) -> GremlinTraversal:
                 # eventually define that behavior, but it is not part of the
                 # validated subset.
                 msg = "get(...) is only supported as a root traversal for now"
-                raise UnsupportedOpiumCompilationError(msg)
+                raise UnsupportedOpiumCompilationError(
+                    msg,
+                    code="compile.unsupported_root",
+                    context={"function": "get", "position": "child"},
+                )
             labels = string_args(call)
             if not labels:
                 msg = "get(...) requires at least one resource"
-                raise InvalidOpiumSemanticError(msg)
+                raise InvalidOpiumSemanticError(
+                    msg,
+                    code="semantic.invalid_argument_count",
+                    expected=("at least one resource",),
+                    actual="0",
+                    context={"function": "get"},
+                )
             traversal = GremlinTraversal("g.V()")
             # In the agreed Arango/Gremlin setup, Opium resource names are
             # Arango collection names and the provider exposes collections as
@@ -167,11 +179,15 @@ def _compile_call(call: CallExpr, *, child: bool) -> GremlinTraversal:
             # `var('x')` compiles to Gremlin `select('x')`. Whether a label `x`
             # is actually in scope depends on the surrounding query and is not
             # fully validated by this compiler yet.
-            name = parse_single_string_arg(call, "var")
+            name = parse_variable_name_arg(call, "var")
             return GremlinTraversal(f"select({quote_groovy(name)})")
         case function:
             msg = f"{function}(...) cannot start a Gremlin traversal"
-            raise UnsupportedOpiumCompilationError(msg)
+            raise UnsupportedOpiumCompilationError(
+                msg,
+                code="compile.unsupported_root",
+                actual=function,
+            )
 
 
 def _apply_method(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
@@ -181,9 +197,9 @@ def _apply_method(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
         case "into":
             _apply_into(traversal, call)
         case "skip":
-            traversal.add(f".skip({parse_single_int_arg(call, 'skip')})")
+            traversal.add(f".skip({parse_skip_count(call)})")
         case "limit":
-            traversal.add(f".limit({parse_single_int_arg(call, 'limit')})")
+            traversal.add(f".limit({parse_limit_count(call)})")
         case "count":
             parse_empty_method_call(call)
             traversal.add(".count()")
@@ -191,9 +207,8 @@ def _apply_method(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
             parse_empty_method_call(call)
             traversal.add(".dedup()")
         case "as_var":
-            traversal.add(
-                f".as({quote_groovy(parse_single_string_arg(call, 'as_var'))})"
-            )
+            name = parse_variable_name_arg(call, "as_var")
+            traversal.add(f".as({quote_groovy(name)})")
         case "match" | "match_all" | "match_any":
             apply_match(
                 traversal,
@@ -214,7 +229,7 @@ def _apply_method(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
             # `flatten()` is represented as one `unfold()`. `flatten(depth=N)`
             # repeats `unfold()` N times. This is a simple Gremlin mapping, not
             # a complete commitment about every nested Opium array shape.
-            depth = parse_optional_int_kwarg(call, "depth", default=1)
+            depth = parse_flatten_depth(call)
             parse_no_positional_args(call, "flatten")
             traversal.extend([".unfold()" for _ in range(depth)])
         case "assign":
@@ -223,7 +238,11 @@ def _apply_method(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
             _apply_select(traversal, call)
         case method:
             msg = f"Unsupported method for Gremlin compilation: {method}"
-            raise UnsupportedOpiumCompilationError(msg)
+            raise UnsupportedOpiumCompilationError(
+                msg,
+                code="compile.unsupported_method",
+                actual=method,
+            )
 
 
 def _apply_traverse(
@@ -231,11 +250,10 @@ def _apply_traverse(
 ) -> None:
     labels = string_args(call)
     traversal_direction = direction(call)
-    min_depth = parse_optional_int_kwarg(call, "min_depth", default=1)
-    max_depth = parse_optional_int_kwarg(call, "max_depth", default=1)
+    depth_range = parse_depth_range(call)
     parse_supported_kwargs(call, {"min_depth", "max_depth", "direction"})
 
-    if min_depth != 1 or max_depth != 1:
+    if depth_range.min_depth != 1 or depth_range.max_depth != 1:
         # Deep traversal has to remember the edge taken at each hop because
         # Opium `traverse(...)` returns edges, while `traverse(...).into()`
         # returns vertices. The repeat body therefore labels each edge as
@@ -245,7 +263,9 @@ def _apply_traverse(
 
     # Default traversal returns edges. `into()` is a separate Opium step that
     # converts those edges to the opposite endpoint vertex.
-    step = {"any": "bothE", "outbound": "outE", "inbound": "inE"}[traversal_direction]
+    step = {"any": "bothE", "outbound": "outE", "inbound": "inE"}[
+        str(traversal_direction)
+    ]
     traversal.add(f".{step}({render_label_args(labels)})")
 
 
@@ -276,11 +296,23 @@ def _apply_into(traversal: GremlinTraversal, call: CallExpr | MethodCallExpr) ->
 def _apply_assign(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
     if len(call.args) != 2 or call.kwargs:
         msg = "assign(...) expects (sub_query, var_name)"
-        raise InvalidOpiumSemanticError(msg)
+        raise InvalidOpiumSemanticError(
+            msg,
+            code="semantic.invalid_argument_count",
+            expected=("sub_query", "var_name"),
+            actual=f"{len(call.args)} positional, {len(call.kwargs)} keyword",
+            context={"method": "assign"},
+        )
     subquery, var_name_expr = call.args
     if not isinstance(var_name_expr, StringExpr):
         msg = "assign(...) var_name must be a string literal"
-        raise InvalidOpiumSemanticError(msg)
+        raise InvalidOpiumSemanticError(
+            msg,
+            code="semantic.invalid_argument_type",
+            expected=("string",),
+            actual=type(var_name_expr).__name__,
+            context={"method": "assign", "argument": "var_name"},
+        )
     child = _compile_traversal(subquery, child=True).render()
     # This is a first-pass implementation. It stores a folded child result
     # under a Gremlin label using `sideEffect`. The exact Opium semantics for
@@ -296,7 +328,13 @@ def _apply_select(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
     computed = list(call.kwargs.items())
     if not columns and not computed:
         msg = "select(...) requires at least one column"
-        raise InvalidOpiumSemanticError(msg)
+        raise InvalidOpiumSemanticError(
+            msg,
+            code="semantic.invalid_argument_count",
+            expected=("at least one selected column",),
+            actual="0",
+            context={"method": "select"},
+        )
 
     names = [*columns, *(name for name, _expr in computed)]
     # `select(...)` returns a map/document shape. Gremlin `project(...).by(...)`
@@ -318,7 +356,12 @@ def _compile_condition_operand_traversal(expr: Expr) -> str:
         return f"__.{traversal}"
 
     msg = f"Unsupported condition traversal operand: {type(expr).__name__}"
-    raise UnsupportedOpiumCompilationError(msg)
+    raise UnsupportedOpiumCompilationError(
+        msg,
+        code="compile.unsupported_expression",
+        actual=type(expr).__name__,
+        context={"position": "match operand"},
+    )
 
 
 def _is_deep_traverse_expr(expr: Expr) -> bool:
@@ -342,19 +385,15 @@ def _traversal_start(*, child: bool) -> GremlinTraversal:
 
 
 def _has_non_default_depth(call: CallExpr | MethodCallExpr) -> bool:
-    return (
-        parse_optional_int_kwarg(call, "min_depth", default=1) != 1
-        or parse_optional_int_kwarg(call, "max_depth", default=1) != 1
-    )
+    depth_range = parse_depth_range(call)
+    return depth_range.min_depth != 1 or depth_range.max_depth != 1
 
 
 def _compile_deep_traverse_step(call: CallExpr | MethodCallExpr, *, into: bool) -> str:
     parse_supported_kwargs(call, {"min_depth", "max_depth", "direction"})
-    min_depth = parse_optional_int_kwarg(call, "min_depth", default=1)
-    max_depth = parse_optional_int_kwarg(call, "max_depth", default=1)
-    if min_depth < 1 or max_depth < min_depth:
-        msg = "traverse depth requires 1 <= min_depth <= max_depth"
-        raise InvalidOpiumSemanticError(msg)
+    depth_range = parse_depth_range(call)
+    min_depth = depth_range.min_depth
+    max_depth = depth_range.max_depth
 
     repeat_body = deep_repeat_body(call)
     # `emit()` includes intermediate depths. For min_depth > 1, Gremlin's

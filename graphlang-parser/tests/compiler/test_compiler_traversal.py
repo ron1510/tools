@@ -36,40 +36,33 @@ def test_compile_skip_limit_count_unique():
 
 def test_compile_projection():
     assert (
-        compile_opium_to_gremlin("get('users')['_key']")
-        == "g.V().hasLabel('users')"
-        ".project('_key')"
-        ".by(__.id().map{it.get().substring(it.get().lastIndexOf('/') + 1)})"
+        compile_opium_to_gremlin("get('users')['_key']") == "g.V().hasLabel('users')"
+        ".id().map{it.get().substring(it.get().lastIndexOf('/') + 1)}"
     )
 
 
 def test_compile_id_projection():
     assert (
         compile_opium_to_gremlin("get('users')['_id']")
-        == "g.V().hasLabel('users').project('_id').by(__.id())"
+        == "g.V().hasLabel('users').id()"
     )
 
 
 def test_compile_missing_field_projection():
     assert (
         compile_opium_to_gremlin("get('users')['missing']")
-        == "g.V().hasLabel('users')"
-        ".project('missing').by(coalesce(values('missing'), constant(null)))"
+        == "g.V().hasLabel('users').coalesce(values('missing'), constant(null))"
     )
 
 
 def test_compile_edge_from_to_projection():
     assert (
         compile_opium_to_gremlin("get('users').traverse_out('subs')['_from']")
-        == "g.V().hasLabel('users')"
-        ".outE('subs')"
-        ".project('_from').by(__.outV().id())"
+        == "g.V().hasLabel('users').outE('subs').outV().id()"
     )
     assert (
         compile_opium_to_gremlin("get('users').traverse_out('subs')['_to']")
-        == "g.V().hasLabel('users')"
-        ".outE('subs')"
-        ".project('_to').by(__.inV().id())"
+        == "g.V().hasLabel('users').outE('subs').inV().id()"
     )
 
 
@@ -78,6 +71,60 @@ def test_compile_array_flatten():
         compile_opium_to_gremlin("get('users').array(traverse().into()).flatten()")
         == "g.V().hasLabel('users').local(__.bothE().otherV()).fold().unfold()"
     )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "get('users').array(traverse_out('subs').into('roles')['_key'])",
+            "g.V().hasLabel('users')"
+            ".local(__.outE('subs').otherV().hasLabel('roles')"
+            ".id().map{it.get().substring(it.get().lastIndexOf('/') + 1)})"
+            ".fold()",
+        ),
+        (
+            "get('users').array(traverse_in('subs')['_from'])",
+            "g.V().hasLabel('users').local(__.inE('subs').outV().id()).fold()",
+        ),
+        (
+            "get('users')"
+            ".array(traverse_any('subs').match(weight > 1).select('_key', 'weight'))",
+            "g.V().hasLabel('users')"
+            ".local(__.bothE('subs')"
+            ".has('weight', P.gt(1))"
+            ".project('_key', 'weight')"
+            ".by(__.id().map{it.get().substring(it.get().lastIndexOf('/') + 1)})"
+            ".by(coalesce(values('weight'), constant(null))))"
+            ".fold()",
+        ),
+    ],
+)
+def test_compile_array_subquery_shapes(source, expected):
+    assert compile_opium_to_gremlin(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        (
+            "get('users').array(traverse().into()).flatten(depth=0)",
+            "g.V().hasLabel('users').local(__.bothE().otherV()).fold()",
+        ),
+        (
+            "get('users').array(traverse().into()).flatten(depth=1)",
+            "g.V().hasLabel('users').local(__.bothE().otherV()).fold().unfold()",
+        ),
+        (
+            "get('users').array(traverse().into()).flatten(depth=3)",
+            "g.V().hasLabel('users')"
+            ".local(__.bothE().otherV()).fold()"
+            ".unfold().unfold().unfold()",
+        ),
+    ],
+)
+def test_compile_flatten_depth_shapes(source, expected):
+    assert compile_opium_to_gremlin(source) == expected
 
 
 def test_invalid_direction():

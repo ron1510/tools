@@ -1,16 +1,24 @@
 from __future__ import annotations
 
 from opium_parser.ast_nodes import CallExpr, Expr, StringExpr, SubscriptExpr
-from opium_parser.compiler_common import parse_single_string_arg
+from opium_parser.compiler_common import parse_projection_field, parse_variable_name_arg
 from opium_parser.errors import UnsupportedOpiumCompilationError
 from opium_parser.gremlin_renderer import quote_groovy
 
 
 def compile_projection_step(field: str) -> str:
-    # Subscript projection returns a one-field map, not a raw scalar. This keeps
-    # `get('roles')['_key']` consistent with `select('_key')` and with the
-    # project/document semantics recorded in the Opium semantics notes.
-    return f".project({quote_groovy(field)}).by({compile_by_projection(field)})"
+    field = str(parse_projection_field(field))
+    # Opium `[]` projection returns scalar field values. This intentionally
+    # differs from `select(...)`, which returns map/document-shaped rows.
+    if field == "_key":
+        return ".id().map{it.get().substring(it.get().lastIndexOf('/') + 1)}"
+    if field == "_id":
+        return ".id()"
+    if field == "_from":
+        return ".outV().id()"
+    if field == "_to":
+        return ".inV().id()"
+    return f".coalesce(values({quote_groovy(field)}), constant(null))"
 
 
 def compile_by_projection(field: str) -> str:
@@ -42,7 +50,7 @@ def compile_projection_expr(expr: Expr) -> str:
     """Compile expressions allowed in computed `select` columns."""
 
     if isinstance(expr, CallExpr) and expr.function == "var":
-        return f"select({quote_groovy(parse_single_string_arg(expr, 'var'))})"
+        return f"select({quote_groovy(parse_variable_name_arg(expr, 'var'))})"
     if isinstance(expr, SubscriptExpr):
         base = compile_projection_expr(expr.receiver)
         return f"{base}{compile_projection_step(expr.field)}"
@@ -50,4 +58,8 @@ def compile_projection_expr(expr: Expr) -> str:
         return quote_groovy(expr.value)
 
     msg = f"Unsupported select projection: {type(expr).__name__}"
-    raise UnsupportedOpiumCompilationError(msg)
+    raise UnsupportedOpiumCompilationError(
+        msg,
+        code="compile.unsupported_select_expression",
+        actual=type(expr).__name__,
+    )

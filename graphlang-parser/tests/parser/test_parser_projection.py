@@ -31,4 +31,3 @@ def test_projection_inside_select_kwarg():
     projection = ast.root.kwargs["neighbors"]
     assert isinstance(projection, SubscriptExpr)
     assert projection.field == "_key"
-

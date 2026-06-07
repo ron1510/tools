@@ -106,6 +106,25 @@ This is an Opium parser, not a Python evaluator. Unsupported syntax includes:
 Unknown function or method names raise `UnsupportedOpiumSyntaxError`. Duplicate
 keyword arguments raise `InvalidOpiumExpressionError`.
 
+## Structured Errors
+
+Parser and compiler exceptions expose a structured `.detail` payload:
+
+```python
+from opium_parser import parse_opium
+from opium_parser.errors import OpiumParserError
+
+try:
+    parse_opium("get('x').limit(1 + 2)")
+except OpiumParserError as exc:
+    print(exc.detail.code)
+    print(exc.detail.stage)
+    print(exc.detail.span)
+```
+
+The old exception classes are still used, but callers can now inspect stable
+error codes, stage, expected/actual values, optional source span, and context.
+
 ## Compilation Limitations
 
 The compiler is intentionally conservative. It supports the documented common
@@ -121,7 +140,8 @@ Current assumptions and limitations:
 - resources compile as `hasLabel(...)`
 - Arango `_key` is compiled through Gremlin `id()` because the TinkerPop
   provider exposes document ids as `collection/key`, not as a normal `_key`
-  property; field projection returns maps such as `{"_key": "admin"}`
+  property; subscript projection returns scalar values such as `"admin"`, while
+  `select('_key')` returns maps such as `{"_key": "admin"}`
 - float literals are rendered as Java double literals, for example `90.0d`,
   because this ArangoDB provider rejects Groovy `BigDecimal` predicate values
 - `regex_matches(...)` compiles with `TextP.regex(...)`

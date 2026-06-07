@@ -25,6 +25,7 @@ from opium_parser.ast_nodes import (
 from opium_parser.errors import (
     InvalidOpiumExpressionError,
     UnsupportedOpiumSyntaxError,
+    error_context,
 )
 from opium_parser.opium_names import parse_call_name
 
@@ -82,7 +83,12 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
                 expr = SubscriptExpr(receiver=expr, field=trailer.field)
             else:
                 msg = f"Unsupported trailer: {trailer!r}"
-                raise UnsupportedOpiumSyntaxError(msg)
+                raise UnsupportedOpiumSyntaxError(
+                    msg,
+                    code="syntax.unsupported_trailer",
+                    stage="transform",
+                    actual=type(trailer).__name__,
+                )
         return expr
 
     def call(self, children: list[Any]) -> CallExpr:
@@ -112,12 +118,21 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
                 seen_keyword = True
                 if child.name in kwargs:
                     msg = f"Duplicate keyword argument: {child.name}"
-                    raise InvalidOpiumExpressionError(msg)
+                    raise InvalidOpiumExpressionError(
+                        msg,
+                        code="syntax.duplicate_kwarg",
+                        stage="transform",
+                        context=error_context(kwarg=child.name),
+                    )
                 kwargs[child.name] = child.value
             else:
                 if seen_keyword:
                     msg = "Positional arguments cannot follow keyword arguments"
-                    raise InvalidOpiumExpressionError(msg)
+                    raise InvalidOpiumExpressionError(
+                        msg,
+                        code="syntax.positional_after_keyword",
+                        stage="transform",
+                    )
                 args.append(cast(ExprNode, child))
 
         return args, kwargs
@@ -181,7 +196,12 @@ class OpiumTransformer(Transformer[Any, Query | Expr]):
         for key, value in pairs:
             if key in items:
                 msg = f"Duplicate dict key: {key}"
-                raise InvalidOpiumExpressionError(msg)
+                raise InvalidOpiumExpressionError(
+                    msg,
+                    code="syntax.duplicate_dict_key",
+                    stage="transform",
+                    context=error_context(key=key),
+                )
             items[key] = value
         return DictExpr(items=items)
 
@@ -213,5 +233,10 @@ def _decode_string(token: Token) -> str:
     value = ast.literal_eval(str(token))
     if not isinstance(value, str):
         msg = f"Expected string literal, got {token}"
-        raise InvalidOpiumExpressionError(msg)
+        raise InvalidOpiumExpressionError(
+            msg,
+            code="syntax.invalid_string_literal",
+            stage="transform",
+            actual=str(token),
+        )
     return value

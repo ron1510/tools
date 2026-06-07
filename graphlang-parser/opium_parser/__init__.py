@@ -15,8 +15,24 @@ from opium_parser.ast_nodes import (
     SubscriptExpr,
 )
 from opium_parser.compiler import compile_ast_to_gremlin, compile_opium_to_gremlin
+from opium_parser.errors import OpiumErrorDetail, OpiumSourceSpan
 from opium_parser.parser import parse_opium
-from opium_parser.types import GremlinGroovyFragment, GremlinGroovyString
+from opium_parser.types import (
+    DepthRange,
+    FieldName,
+    FlattenDepth,
+    GremlinGroovyFragment,
+    GremlinGroovyString,
+    LimitCount,
+    MatchOperator,
+    NonNegativeInt,
+    PositiveDepth,
+    ProjectionField,
+    ResourceName,
+    SkipCount,
+    TraversalDirection,
+    VariableName,
+)
 
 __all__ = [
     "BinaryOpExpr",
@@ -35,7 +51,21 @@ __all__ = [
     "SubscriptExpr",
     "compile_ast_to_gremlin",
     "compile_opium_to_gremlin",
+    "DepthRange",
+    "FieldName",
+    "FlattenDepth",
     "GremlinGroovyFragment",
     "GremlinGroovyString",
+    "LimitCount",
+    "MatchOperator",
+    "NonNegativeInt",
+    "OpiumErrorDetail",
+    "OpiumSourceSpan",
     "parse_opium",
+    "PositiveDepth",
+    "ProjectionField",
+    "ResourceName",
+    "SkipCount",
+    "TraversalDirection",
+    "VariableName",
 ]

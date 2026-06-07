@@ -1,6 +1,7 @@
 import pytest
 
 from opium_parser import compile_opium_to_gremlin
+from opium_parser.errors import InvalidOpiumSemanticError
 
 
 def test_compile_complex_filter_traverse_unique_count():
@@ -74,7 +75,7 @@ def test_compile_var_selection_with_current_supported_shape():
         ".as('role')"
         ".project('_key', 'role_id')"
         ".by(__.id().map{it.get().substring(it.get().lastIndexOf('/') + 1)})"
-        ".by(select('role').project('_id').by(__.id()))"
+        ".by(select('role').id())"
     )
 
 
@@ -140,7 +141,6 @@ def test_compile_match_deep_traversal_operand_expected_shape():
     )
 
 
-@pytest.mark.skip(reason="Traversal aggregation inside match needs semantics")
 def test_compile_match_traversal_count_at_least_three_expected_shape():
     source = (
         "get('users-data-product.user_roles')"
@@ -151,7 +151,57 @@ def test_compile_match_traversal_count_at_least_three_expected_shape():
         ")"
     )
 
-    compile_opium_to_gremlin(source)
+    assert compile_opium_to_gremlin(source) == (
+        "g.V().hasLabel('users-data-product.user_roles')"
+        ".filter(__.outE('permissions-data-product.role_abilities')"
+        ".otherV()"
+        ".hasLabel('permissions-data-product.abilities')"
+        ".count()"
+        ".is(P.gte(3)))"
+    )
+
+
+def test_compile_match_unique_traversal_count_expected_shape():
+    source = (
+        "get('platform-data-product.services')"
+        ".match("
+        "traverse_out('platform-data-product.service_dependencies')"
+        ".into('platform-data-product.services')"
+        ".unique()"
+        ".count() >= 2"
+        ")"
+    )
+
+    assert compile_opium_to_gremlin(source) == (
+        "g.V().hasLabel('platform-data-product.services')"
+        ".filter(__.outE('platform-data-product.service_dependencies')"
+        ".otherV()"
+        ".hasLabel('platform-data-product.services')"
+        ".dedup()"
+        ".count()"
+        ".is(P.gte(2)))"
+    )
+
+
+def test_compile_match_function_style_traversal_count_expected_shape():
+    source = (
+        "get('users-data-product.user_roles')"
+        ".match(gt("
+        "traverse_out('permissions-data-product.role_abilities')"
+        ".into('permissions-data-product.abilities')"
+        ".count(), "
+        "1"
+        "))"
+    )
+
+    assert compile_opium_to_gremlin(source) == (
+        "g.V().hasLabel('users-data-product.user_roles')"
+        ".filter(__.outE('permissions-data-product.role_abilities')"
+        ".otherV()"
+        ".hasLabel('permissions-data-product.abilities')"
+        ".count()"
+        ".is(P.gt(1)))"
+    )
 
 
 def test_compile_match_var_operand_expected_shape():
@@ -175,3 +225,13 @@ def test_compile_is_null_matches_missing_or_explicit_null_expected_shape():
         "g.V().hasLabel('users-data-product.user_roles')"
         ".or(__.not(__.has('nullable_field')), __.has('nullable_field', null))"
     )
+
+
+def test_compile_match_traversal_count_rejects_non_numeric_comparison():
+    with pytest.raises(InvalidOpiumSemanticError):
+        compile_opium_to_gremlin(
+            "get('users-data-product.user_roles')"
+            ".match(traverse_out('permissions-data-product.role_abilities')"
+            ".into('permissions-data-product.abilities')"
+            ".count() == '3')"
+        )

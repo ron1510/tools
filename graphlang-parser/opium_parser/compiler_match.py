@@ -7,6 +7,8 @@ from opium_parser.ast_nodes import (
     BooleanExpr,
     CallExpr,
     Expr,
+    MethodCallExpr,
+    NumberExpr,
     SubscriptExpr,
 )
 from opium_parser.compiler_common import (
@@ -22,9 +24,10 @@ from opium_parser.compiler_common import (
 from opium_parser.errors import (
     InvalidOpiumSemanticError,
     UnsupportedOpiumCompilationError,
+    error_context,
 )
 from opium_parser.gremlin_ir import GremlinTraversal
-from opium_parser.gremlin_renderer import quote_groovy, render_literal
+from opium_parser.gremlin_renderer import quote_groovy, render_literal, render_predicate
 
 ConditionTraversalCompiler = Callable[[Expr], str]
 
@@ -80,7 +83,12 @@ def compile_condition(
         return compile_binary_condition(expr, compile_condition_operand_traversal)
 
     msg = f"Unsupported match condition: {type(expr).__name__}"
-    raise UnsupportedOpiumCompilationError(msg)
+    raise UnsupportedOpiumCompilationError(
+        msg,
+        code="compile.unsupported_expression",
+        actual=type(expr).__name__,
+        context=error_context(position="match condition"),
+    )
 
 
 def compile_condition_call(
@@ -133,13 +141,24 @@ def compile_condition_call(
             return compile_regex(call)
         case function:
             msg = f"Unsupported condition function: {function}"
-            raise UnsupportedOpiumCompilationError(msg)
+            raise UnsupportedOpiumCompilationError(
+                msg,
+                code="compile.unsupported_expression",
+                actual=function,
+                context=error_context(position="match condition function"),
+            )
 
 
 def compile_regex(call: CallExpr) -> str:
     if len(call.args) != 2:
         msg = "regex_matches(...) expects field and regex positional arguments"
-        raise InvalidOpiumSemanticError(msg)
+        raise InvalidOpiumSemanticError(
+            msg,
+            code="semantic.invalid_argument_count",
+            expected=("field", "regex"),
+            actual=str(len(call.args)),
+            context=error_context(function="regex_matches"),
+        )
     field = parse_field_name(call.args[0])
     regex = parse_string_literal(call.args[1], "regex")
     case_insensitive = False
@@ -147,13 +166,28 @@ def compile_regex(call: CallExpr) -> str:
         value = call.kwargs["caseInsensitive"]
         if not isinstance(value, BooleanExpr):
             msg = "regex_matches(..., caseInsensitive=...) must be boolean"
-            raise InvalidOpiumSemanticError(msg)
+            raise InvalidOpiumSemanticError(
+                msg,
+                code="semantic.invalid_argument_type",
+                expected=("boolean",),
+                actual=type(value).__name__,
+                context=error_context(
+                    function="regex_matches",
+                    kwarg="caseInsensitive",
+                ),
+            )
         case_insensitive = value.value
     unknown = set(call.kwargs) - {"caseInsensitive"}
     if unknown:
         names = ", ".join(sorted(unknown))
         msg = f"Unsupported keyword argument(s): {names}"
-        raise InvalidOpiumSemanticError(msg)
+        raise InvalidOpiumSemanticError(
+            msg,
+            code="semantic.unknown_kwarg",
+            expected=("caseInsensitive",),
+            actual=names,
+            context=error_context(function="regex_matches"),
+        )
     if case_insensitive and not regex.startswith("(?i)"):
         # Gremlin TextP.regex accepts Java regex syntax. Prefixing `(?i)` is
         # the least invasive way to implement Opium's `caseInsensitive`
@@ -195,6 +229,42 @@ def compile_operand_condition(
     if isinstance(left, SubscriptExpr):
         child = compile_condition_operand_traversal(left.receiver)
         return f".filter({child}{compile_field_condition(left.field, op, value)})"
+    if is_count_aggregation(left):
+        child = compile_condition_operand_traversal(left)
+        return f".filter({child}.is({render_count_predicate(op, value)}))"
 
     msg = f"Unsupported condition operand: {type(left).__name__}"
-    raise UnsupportedOpiumCompilationError(msg)
+    raise UnsupportedOpiumCompilationError(
+        msg,
+        code="compile.unsupported_expression",
+        actual=type(left).__name__,
+        context=error_context(position="match operand"),
+    )
+
+
+def is_count_aggregation(expr: Expr) -> bool:
+    return isinstance(expr, MethodCallExpr) and expr.method == "count"
+
+
+def render_count_predicate(op: str, value: Expr) -> str:
+    if not isinstance(value, NumberExpr):
+        msg = "count() comparisons require a numeric literal"
+        raise InvalidOpiumSemanticError(
+            msg,
+            code="semantic.invalid_count_comparison",
+            expected=("numeric literal",),
+            actual=type(value).__name__,
+        )
+
+    if op == "eq":
+        return render_literal(value)
+    if op in {"ne", "lt", "gt", "lte", "gte"}:
+        return render_predicate(op, value)
+
+    msg = f"Unsupported count() comparison operator: {op}"
+    raise UnsupportedOpiumCompilationError(
+        msg,
+        code="compile.unsupported_expression",
+        actual=op,
+        context=error_context(position="count comparison"),
+    )

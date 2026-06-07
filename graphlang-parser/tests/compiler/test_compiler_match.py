@@ -84,8 +84,7 @@ def test_compile_match_subquery_operand():
 def test_compile_match_variable_operand():
     assert (
         compile_opium_to_gremlin(
-            "get('roles').as_var('role')"
-            ".match(eq(var('role')['_key'], 'admin'))"
+            "get('roles').as_var('role').match(eq(var('role')['_key'], 'admin'))"
         )
         == "g.V().hasLabel('roles').as('role')"
         ".filter(__.select('role').hasId(TextP.endingWith('/admin')))"

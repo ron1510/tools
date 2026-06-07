@@ -1,6 +1,9 @@
 # Opium Semantics
 
 This document records the agreed semantics for the documented Opium subset.
+The primary source is `opium_keywords_transcript.md`; this file should explain
+that transcript in implementation-friendly terms without inventing new language
+behavior.
 
 It is the source of truth for compiler behavior. The questions that are still
 open live in `docs/QUESTIONS_FOR_COMPILER_COMPLETION.md`.
@@ -58,8 +61,8 @@ asks for it.
 
 ## Projection Semantics
 
-Field projection returns maps/documents containing the requested field and its
-value. It does not return raw scalar values.
+Subscript projection returns the scalar value of one field for each current
+result. It does not return one-field maps.
 
 Example:
 
@@ -71,10 +74,18 @@ returns:
 
 ```python
 [
-    {"_key": "first"},
-    {"_key": "second"},
+    "first",
+    "second",
 ]
 ```
+
+Multiple field projection should be expressed with `select(...)`, not with
+`[]`.
+
+If the selected field is missing, the current compiler preserves the row and
+returns `None` for that projection. The transcript is explicit about missing
+fields in `select(...)`; scalar projection uses the same missing-field behavior
+for now so row counts do not silently change.
 
 ## Internal Arango Fields
 
@@ -232,7 +243,8 @@ current row's `_key` against `"admin"`.
 ## `select(...)` Semantics
 
 `select(...)` returns maps/documents containing the selected fields and computed
-columns.
+columns. This is intentionally different from `[]`, which returns scalar field
+values.
 
 Example:
 
@@ -251,7 +263,8 @@ returns:
 ]
 ```
 
-`select('_key')` should behave the same as `['_key']`.
+`select('_key')` returns `{"_key": value}` rows. `['_key']` returns raw `value`
+rows.
 
 Missing selected fields should appear with a `None` value in Python.
 
@@ -272,8 +285,6 @@ returns:
 ]
 ```
 
-Multiple field projection should be expressed with `select(...)`, not with `[]`.
-
 Computed columns return whatever the computed expression returns.
 
 If the expression returns a scalar, the computed column value is scalar. If the
@@ -287,8 +298,8 @@ select('_key', neighbors=var('neighborhood')['_key'])
 ```
 
 If `neighborhood` is bound to an array of entities, then `neighbors` should be an
-array of projected `_key` maps or values according to the projection semantics
-of that expression.
+array of projected `_key` values according to the projection semantics of that
+expression.
 
 ## Aggregation And Result Shaping
 
@@ -321,6 +332,22 @@ unspecified unless an explicit ordering operation is introduced.
 
 ## `array(...)` And `flatten(...)` Semantics
 
+`array(subquery)` runs a subquery from each current row and replaces the current
+row with an array containing that subquery's results.
+
+Example:
+
+```python
+get('users-data-product.user_roles', _key='admin')
+    .array(traverse().into()['_key'])
+```
+
+returns one array result for the `admin` row. The array contains scalar `_key`
+values because `['_key']` is scalar projection.
+
+Use `assign(...).select(...)` when the original row should be preserved and the
+computed subquery result should be exposed as a named output column.
+
 `flatten()` and `flatten(depth=1)` are equivalent.
 
 `flatten(depth=N)` flattens nested arrays by `N` levels.
@@ -336,9 +363,6 @@ flatten(depth=2)
 If the current result contains nested arrays, `flatten(depth=2)` removes two
 array nesting levels. The operation should not imply additional graph traversal;
 it only reshapes array/list results.
-
-The exact row scope of `array(sub_query)` is still unresolved and remains in
-`docs/QUESTIONS_FOR_COMPILER_COMPLETION.md`.
 
 ## Match Subquery Semantics
 
@@ -357,6 +381,29 @@ has `_key == "admin"`.
 
 The subquery inside the condition starts from the current row. It is not a
 global graph query.
+
+Aggregation subqueries inside `match(...)` also start from the current row.
+The supported aggregate form is `count()` and `unique().count()` compared to a
+numeric literal.
+
+Example:
+
+```python
+get('users-data-product.user_roles')
+    .match(
+        traverse_out('permissions-data-product.role_abilities')
+            .into('permissions-data-product.abilities')
+            .count() >= 3
+    )
+```
+
+returns current roles whose local ability traversal produces at least three
+results.
+
+`count()` counts raw traversal results. `unique().count()` deduplicates before
+counting. If the subquery has no results, `count()` evaluates to `0` for that
+current row. Non-numeric comparisons against `count()` are invalid Opium
+semantics.
 
 ## Null Semantics
 
