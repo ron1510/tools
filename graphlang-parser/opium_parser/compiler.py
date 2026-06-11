@@ -60,6 +60,7 @@ from opium_parser.gremlin_renderer import (
     render_label_args,
 )
 from opium_parser.parser import parse_opium
+from opium_parser.resource_names import normalize_resource_names
 from opium_parser.types import GremlinGroovyString
 
 
@@ -150,11 +151,9 @@ def _compile_call(call: CallExpr, *, child: bool) -> GremlinTraversal:
                     context={"function": "get"},
                 )
             traversal = GremlinTraversal("g.V()")
-            # In the agreed Arango/Gremlin setup, Opium resource names are
-            # Arango collection names and the provider exposes collections as
-            # Gremlin labels. This is why `get('collection')` compiles to
-            # `g.V().hasLabel('collection')`.
-            traversal.add(f".hasLabel({render_label_args(labels)})")
+            traversal.add(
+                f".hasLabel({render_label_args(normalize_resource_names(labels))})"
+            )
             if "_key" in call.kwargs:
                 traversal.add(compile_key_filter(call.kwargs["_key"]))
             parse_supported_kwargs(call, {"_key"})
@@ -266,7 +265,7 @@ def _apply_traverse(
     step = {"any": "bothE", "outbound": "outE", "inbound": "inE"}[
         str(traversal_direction)
     ]
-    traversal.add(f".{step}({render_label_args(labels)})")
+    traversal.add(f".{step}({render_label_args(normalize_resource_names(labels))})")
 
 
 def _apply_deep_traverse_into(
@@ -278,7 +277,9 @@ def _apply_deep_traverse_into(
     parse_supported_kwargs(into_call, set())
     labels = string_args(into_call)
     if labels:
-        traversal.add(f".hasLabel({render_label_args(labels)})")
+        traversal.add(
+            f".hasLabel({render_label_args(normalize_resource_names(labels))})"
+        )
 
 
 def _apply_into(traversal: GremlinTraversal, call: CallExpr | MethodCallExpr) -> None:
@@ -290,7 +291,9 @@ def _apply_into(traversal: GremlinTraversal, call: CallExpr | MethodCallExpr) ->
     # documents before deciding to move into vertices.
     traversal.add(".otherV()")
     if labels:
-        traversal.add(f".hasLabel({render_label_args(labels)})")
+        traversal.add(
+            f".hasLabel({render_label_args(normalize_resource_names(labels))})"
+        )
 
 
 def _apply_assign(traversal: GremlinTraversal, call: MethodCallExpr) -> None:

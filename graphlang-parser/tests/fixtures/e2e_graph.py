@@ -1,9 +1,4 @@
-"""Shared names for the live ArangoDB/Gremlin e2e graph.
-
-The constants keep tests and seed documentation aligned. They intentionally use
-full Arango collection names because the compiler assumption under review is
-that provider COMPLEX mode exposes those collection names as Gremlin labels.
-"""
+"""Logical Opium names and physical labels for the live e2e graph."""
 
 ROLE = "users-data-product.user_roles"
 USER = "users-data-product.users"
@@ -31,33 +26,44 @@ SERVICE_REGION = "infra-data-product.service_regions"
 SERVICE_ENVIRONMENT = "infra-data-product.service_environments"
 DOCUMENT_LINK = "knowledge-data-product.document_links"
 
+
+def physical_label(resource: str) -> str:
+    return resource.replace(".", "___")
+
+
 VERTEX_LABELS = {
-    ROLE,
-    USER,
-    ABILITY,
-    TEAM,
-    DEPARTMENT,
-    PROJECT,
-    SERVICE,
-    INCIDENT,
-    REGION,
-    ENVIRONMENT,
-    DOCUMENT,
+    physical_label(resource)
+    for resource in {
+        ROLE,
+        USER,
+        ABILITY,
+        TEAM,
+        DEPARTMENT,
+        PROJECT,
+        SERVICE,
+        INCIDENT,
+        REGION,
+        ENVIRONMENT,
+        DOCUMENT,
+    }
 }
 EDGE_LABELS = {
-    SUBSCRIPTION,
-    ROLE_ABILITY,
-    MEMBERSHIP,
-    TEAM_HIERARCHY,
-    USER_ROLE_ASSIGNMENT,
-    DEPARTMENT_MEMBERSHIP,
-    DEPARTMENT_PROJECT,
-    PROJECT_SERVICE,
-    SERVICE_DEPENDENCY,
-    INCIDENT_IMPACT,
-    SERVICE_REGION,
-    SERVICE_ENVIRONMENT,
-    DOCUMENT_LINK,
+    physical_label(resource)
+    for resource in {
+        SUBSCRIPTION,
+        ROLE_ABILITY,
+        MEMBERSHIP,
+        TEAM_HIERARCHY,
+        USER_ROLE_ASSIGNMENT,
+        DEPARTMENT_MEMBERSHIP,
+        DEPARTMENT_PROJECT,
+        PROJECT_SERVICE,
+        SERVICE_DEPENDENCY,
+        INCIDENT_IMPACT,
+        SERVICE_REGION,
+        SERVICE_ENVIRONMENT,
+        DOCUMENT_LINK,
+    }
 }
 
 COUNTS = {

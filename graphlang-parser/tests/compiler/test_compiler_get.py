@@ -8,7 +8,7 @@ from opium_parser.errors import InvalidOpiumSemanticError
 def test_compile_get():
     assert (
         compile_opium_to_gremlin("get('users-data-product.user_roles')")
-        == "g.V().hasLabel('users-data-product.user_roles')"
+        == "g.V().hasLabel('users-data-product___user_roles')"
     )
 
 
@@ -17,15 +17,15 @@ def test_compile_get_multiple_collections():
         compile_opium_to_gremlin(
             "get('users-data-product.user_roles', 'permissions-data-product.abilities')"
         )
-        == "g.V().hasLabel('users-data-product.user_roles', "
-        "'permissions-data-product.abilities')"
+        == "g.V().hasLabel('users-data-product___user_roles', "
+        "'permissions-data-product___abilities')"
     )
 
 
 def test_compile_get_key():
     assert (
         compile_opium_to_gremlin("get('users-data-product.user_roles', _key='admin')")
-        == "g.V().hasLabel('users-data-product.user_roles')"
+        == "g.V().hasLabel('users-data-product___user_roles')"
         ".hasId(TextP.endingWith('/admin'))"
     )
 

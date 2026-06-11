@@ -42,11 +42,11 @@ print(query)
 Output:
 
 ```groovy
-g.V().hasLabel('users-data-product.user_roles').limit(100)
+g.V().hasLabel('users-data-product___user_roles').limit(100)
 ```
 
-The compiler assumes Arango vertex and edge collections are exposed as Gremlin
-labels:
+Opium keeps dotted logical resource names. The compiler replaces each `.` with
+`___` when targeting Arango vertex and edge collections:
 
 ```python
 get('users-data-product.user_roles')
@@ -55,8 +55,11 @@ get('users-data-product.user_roles')
 compiles to:
 
 ```groovy
-g.V().hasLabel('users-data-product.user_roles')
+g.V().hasLabel('users-data-product___user_roles')
 ```
+
+The sequence `___` is reserved and rejected in logical resource names. Projected
+`_id`, `_from`, and `_to` values are translated back to dotted logical prefixes.
 
 ## Supported Opium Subset
 
@@ -158,11 +161,11 @@ Current assumptions and limitations:
 The e2e tests expect an ArangoDB TinkerPop provider in `COMPLEX` mode with
 collections exposed as Gremlin labels. They are skipped by default.
 
-Seed the disposable lab graph:
+Port-forward ArangoDB and seed the disposable lab graph:
 
 ```powershell
-kubectl cp scripts/seed_opium_e2e.js gremlin-lab/arangodb-lab-0:/tmp/seed_opium_e2e.js
-kubectl exec -n gremlin-lab arangodb-lab-0 -- arangosh --server.endpoint tcp://127.0.0.1:8529 --server.username root --server.password change-me --javascript.execute /tmp/seed_opium_e2e.js
+kubectl port-forward -n gremlin-lab service/arangodb-lab 8529:8529
+python scripts/seed_opium_e2e.py --url http://127.0.0.1:8529
 ```
 
 Deploy the Gremlin lab chart with the Opium graph config:

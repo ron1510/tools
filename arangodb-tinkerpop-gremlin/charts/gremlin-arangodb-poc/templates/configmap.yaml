@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gremlin-arangodb-poc.fullname" . }}-config
+data:
+  gremlin-server.yaml: |
+    host: 0.0.0.0
+    port: {{ .Values.service.port }}
+    evaluationTimeout: 30000
+    strictTransactionManagement: false
+    channelizer: org.apache.tinkerpop.gremlin.server.channel.WebSocketChannelizer
+    graphs:
+      graph: /opt/gremlin-server/runtime-conf/arangodb.yaml
+    scriptEngines:
+      gremlin-groovy:
+        plugins:
+          org.apache.tinkerpop.gremlin.server.jsr223.GremlinServerGremlinPlugin: {}
+          org.apache.tinkerpop.gremlin.tinkergraph.jsr223.TinkerGraphGremlinPlugin: {}
+          org.apache.tinkerpop.gremlin.jsr223.ScriptFileGremlinPlugin:
+            files:
+              - /opt/gremlin-server/runtime-conf/init.groovy
+          com.arangodb.tinkerpop.gremlin.jsr223.ArangoDBGremlinPlugin: {}
+    serializers:
+      - className: org.apache.tinkerpop.gremlin.util.ser.GraphBinaryMessageSerializerV1
+      - className: org.apache.tinkerpop.gremlin.util.ser.GraphSONMessageSerializerV3
+    processors:
+      - className: org.apache.tinkerpop.gremlin.server.op.session.SessionOpProcessor
+        config:
+          sessionTimeout: 28800000
+      - className: org.apache.tinkerpop.gremlin.server.op.traversal.TraversalOpProcessor
+  arangodb.yaml: |
+    gremlin:
+      graph: "com.arangodb.tinkerpop.gremlin.structure.ArangoDBGraph"
+      arangodb:
+        conf:
+          graph:
+            db: {{ .Values.arangodb.database | quote }}
+            name: {{ .Values.arangodb.graph | quote }}
+            type: {{ .Values.arangodb.graphType }}
+            enableDataDefinition: {{ .Values.arangodb.enableDataDefinition }}
+            orphanCollections: {{ .Values.arangodb.orphanCollections | toJson }}
+            edgeDefinitions: {{ .Values.arangodb.edgeDefinitions | toJson }}
+          driver:
+            user: "${env:ARANGO_USER}"
+            password: "${env:ARANGO_PASSWORD}"
+            hosts:
+              - {{ printf "%s:%v" .Values.arangodb.host .Values.arangodb.port | quote }}
+  init.groovy: |
+    def globals = [:]
+    globals << [{{ .Values.gremlin.traversalSource | quote }}: traversal().withEmbedded(graph)]

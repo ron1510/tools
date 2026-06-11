@@ -1,8 +1,3 @@
-image:
-  repository: gremlin-arangodb-poc
-  tag: local
-  pullPolicy: IfNotPresent
-
 arangodb:
   host: arangodb-lab.gremlin-lab.svc.cluster.local
   port: 8529
@@ -14,8 +9,16 @@ arangodb:
     username: root
     password: change-me
   edgeDefinitions:
-    # The current lab chart renders only the first list item inside
-    # edgeDefinitions: [${ARANGO_EDGE_DEFINITIONS_YAML}]. Keep all relations in
-    # one preformatted value so the rendered provider config receives all
-    # COMPLEX graph edge definitions.
-    - 'users-data-product.user_role_subscriptions:[users-data-product.user_roles]->[users-data-product.user_roles]","permissions-data-product.role_abilities:[users-data-product.user_roles]->[permissions-data-product.abilities]","org-data-product.user_memberships:[users-data-product.users]->[org-data-product.teams]","org-data-product.team_hierarchy:[org-data-product.teams]->[org-data-product.teams]","users-data-product.user_role_assignments:[users-data-product.users]->[users-data-product.user_roles]","org-data-product.department_memberships:[users-data-product.users]->[org-data-product.departments]","delivery-data-product.department_projects:[org-data-product.departments]->[delivery-data-product.projects]","platform-data-product.project_services:[delivery-data-product.projects]->[platform-data-product.services]","platform-data-product.service_dependencies:[platform-data-product.services]->[platform-data-product.services]","ops-data-product.incident_impacts:[ops-data-product.incidents]->[platform-data-product.services]","infra-data-product.service_regions:[platform-data-product.services]->[infra-data-product.regions]","infra-data-product.service_environments:[platform-data-product.services]->[infra-data-product.environments]","knowledge-data-product.document_links:[knowledge-data-product.documents]->[knowledge-data-product.documents]'
+    - users-data-product___user_role_subscriptions:[users-data-product___user_roles]->[users-data-product___user_roles]
+    - permissions-data-product___role_abilities:[users-data-product___user_roles]->[permissions-data-product___abilities]
+    - org-data-product___user_memberships:[users-data-product___users]->[org-data-product___teams]
+    - org-data-product___team_hierarchy:[org-data-product___teams]->[org-data-product___teams]
+    - users-data-product___user_role_assignments:[users-data-product___users]->[users-data-product___user_roles]
+    - org-data-product___department_memberships:[users-data-product___users]->[org-data-product___departments]
+    - delivery-data-product___department_projects:[org-data-product___departments]->[delivery-data-product___projects]
+    - platform-data-product___project_services:[delivery-data-product___projects]->[platform-data-product___services]
+    - platform-data-product___service_dependencies:[platform-data-product___services]->[platform-data-product___services]
+    - ops-data-product___incident_impacts:[ops-data-product___incidents]->[platform-data-product___services]
+    - infra-data-product___service_regions:[platform-data-product___services]->[infra-data-product___regions]
+    - infra-data-product___service_environments:[platform-data-product___services]->[infra-data-product___environments]
+    - knowledge-data-product___document_links:[knowledge-data-product___documents]->[knowledge-data-product___documents]

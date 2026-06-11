@@ -1,7 +1,7 @@
 # E2E Graph Reference
 
 This document describes the synthetic graph seeded by
-`scripts/seed_opium_e2e.js`.
+`scripts/seed_opium_e2e.py`.
 
 The graph is not meant to be production-sized. It is meant to be broad enough to
 exercise many compiler assumptions against a real ArangoDB TinkerPop Provider.

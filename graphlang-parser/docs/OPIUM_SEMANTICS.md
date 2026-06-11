@@ -13,7 +13,7 @@ open live in `docs/QUESTIONS_FOR_COMPILER_COMPLETION.md`.
 The target backend is ArangoDB accessed through ArangoDB TinkerPop Provider in
 `COMPLEX` mode.
 
-ArangoDB collection names are exposed as Gremlin labels:
+Physical ArangoDB collection names are exposed as Gremlin labels:
 
 - vertex collections are Gremlin vertex labels
 - edge collections are Gremlin edge labels
@@ -24,10 +24,10 @@ Example:
 get('users-data-product.user_roles')
 ```
 
-targets vertices with label:
+targets vertices with the normalized label:
 
 ```text
-users-data-product.user_roles
+users-data-product___user_roles
 ```
 
 Example:
@@ -36,11 +36,15 @@ Example:
 traverse_out('users-data-product.user_role_subscriptions')
 ```
 
-targets outgoing edges with label:
+targets outgoing edges with the normalized label:
 
 ```text
-users-data-product.user_role_subscriptions
+users-data-product___user_role_subscriptions
 ```
+
+Every `.` in a logical Opium resource name maps to `___` in ArangoDB. Logical
+resource names containing `___` are invalid because projected ids could not be
+translated back unambiguously.
 
 ## Default Result Shape
 
@@ -110,7 +114,9 @@ Gremlin property.
 
 ### `_id`
 
-`_id` projection should return the full Arango id in `collection/key` form.
+`_id` projection returns a full logical id in `resource/key` form. The physical
+Arango collection prefix is translated from `___` back to `.`, while the key is
+left unchanged.
 
 Example:
 

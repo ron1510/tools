@@ -121,7 +121,7 @@ get('users-data-product.user_roles')
 Gremlin:
 
 ```groovy
-g.V().hasLabel('users-data-product.user_roles')
+g.V().hasLabel('users-data-product___user_roles')
 ```
 
 Reason:
@@ -140,7 +140,7 @@ Gremlin:
 
 ```groovy
 g.V()
- .hasLabel('users-data-product.user_roles')
+ .hasLabel('users-data-product___user_roles')
  .hasId(TextP.endingWith('/admin'))
 ```
 

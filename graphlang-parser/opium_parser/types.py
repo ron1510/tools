@@ -15,6 +15,7 @@ GremlinGroovyString = NewType("GremlinGroovyString", str)
 GremlinGroovyFragment = NewType("GremlinGroovyFragment", str)
 
 ResourceName = NewType("ResourceName", str)
+ArangoCollectionName = NewType("ArangoCollectionName", str)
 FieldName = NewType("FieldName", str)
 ProjectionField = NewType("ProjectionField", str)
 VariableName = NewType("VariableName", str)

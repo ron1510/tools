@@ -37,7 +37,7 @@ tests/
   fixtures/
 
 scripts/
-  seed_opium_e2e.js
+  seed_opium_e2e.py
 
 e2e/
   gremlin-opium-values.yaml
@@ -129,8 +129,8 @@ The e2e suite requires:
 Seed ArangoDB:
 
 ```powershell
-kubectl cp scripts/seed_opium_e2e.js gremlin-lab/arangodb-lab-0:/tmp/seed_opium_e2e.js
-kubectl exec -n gremlin-lab arangodb-lab-0 -- arangosh --server.endpoint tcp://127.0.0.1:8529 --server.username root --server.password change-me --javascript.execute /tmp/seed_opium_e2e.js
+kubectl port-forward -n gremlin-lab service/arangodb-lab 8529:8529
+python scripts/seed_opium_e2e.py --url http://127.0.0.1:8529
 ```
 
 Deploy Gremlin Server config:
@@ -287,7 +287,7 @@ For a code review, read in this order:
 8. `tests/parser`
 9. `tests/compiler`
 10. `tests/e2e/test_gremlin_arangodb.py`
-11. `scripts/seed_opium_e2e.js`
+11. `scripts/seed_opium_e2e.py`
 
 That order makes the code easier to criticize because you first understand the
 language contract, then the implementation choices, then the tests.

@@ -23,6 +23,7 @@ from opium_parser.gremlin_renderer import (
     render_predicate,
     render_within,
 )
+from opium_parser.resource_names import normalize_resource_names
 from opium_parser.types import (
     DepthRange,
     FieldName,
@@ -405,7 +406,7 @@ def compile_key_membership(value: Expr, *, negate: bool) -> str:
 
 
 def deep_repeat_body(call: CallExpr | MethodCallExpr) -> str:
-    labels = render_label_args(string_args(call))
+    labels = render_label_args(normalize_resource_names(string_args(call)))
     value = direction(call)
     if value == "outbound":
         return f"outE({labels}).as('opium_edge').inV()"

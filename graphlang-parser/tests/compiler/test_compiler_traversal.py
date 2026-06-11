@@ -45,6 +45,9 @@ def test_compile_id_projection():
     assert (
         compile_opium_to_gremlin("get('users')['_id']")
         == "g.V().hasLabel('users').id()"
+        ".map{def id=it.get(); def slash=id.indexOf('/'); "
+        "slash < 0 ? id.replace('___', '.') : "
+        "id.substring(0, slash).replace('___', '.') + id.substring(slash)}"
     )
 
 
@@ -59,10 +62,16 @@ def test_compile_edge_from_to_projection():
     assert (
         compile_opium_to_gremlin("get('users').traverse_out('subs')['_from']")
         == "g.V().hasLabel('users').outE('subs').outV().id()"
+        ".map{def id=it.get(); def slash=id.indexOf('/'); "
+        "slash < 0 ? id.replace('___', '.') : "
+        "id.substring(0, slash).replace('___', '.') + id.substring(slash)}"
     )
     assert (
         compile_opium_to_gremlin("get('users').traverse_out('subs')['_to']")
         == "g.V().hasLabel('users').outE('subs').inV().id()"
+        ".map{def id=it.get(); def slash=id.indexOf('/'); "
+        "slash < 0 ? id.replace('___', '.') : "
+        "id.substring(0, slash).replace('___', '.') + id.substring(slash)}"
     )
 
 
@@ -85,7 +94,11 @@ def test_compile_array_flatten():
         ),
         (
             "get('users').array(traverse_in('subs')['_from'])",
-            "g.V().hasLabel('users').local(__.inE('subs').outV().id()).fold()",
+            "g.V().hasLabel('users').local(__.inE('subs').outV().id()"
+            ".map{def id=it.get(); def slash=id.indexOf('/'); "
+            "slash < 0 ? id.replace('___', '.') : "
+            "id.substring(0, slash).replace('___', '.') + id.substring(slash)})"
+            ".fold()",
         ),
         (
             "get('users')"

@@ -92,7 +92,7 @@ compile_opium_to_gremlin("get('users-data-product.user_roles').limit(100)")
 Output:
 
 ```groovy
-g.V().hasLabel('users-data-product.user_roles').limit(100)
+g.V().hasLabel('users-data-product___user_roles').limit(100)
 ```
 
 The compiler currently returns `GremlinGroovyString`, a domain-specific
@@ -107,8 +107,9 @@ graph:
   type: COMPLEX
 ```
 
-In this mode, the provider exposes ArangoDB collection names as Gremlin labels.
-So:
+In this mode, the provider exposes physical ArangoDB collection names as
+Gremlin labels. Opium resource names stay logical; the compiler replaces `.`
+with `___` at this backend boundary. So:
 
 ```python
 get('users-data-product.user_roles')
@@ -117,7 +118,7 @@ get('users-data-product.user_roles')
 compiles to:
 
 ```groovy
-g.V().hasLabel('users-data-product.user_roles')
+g.V().hasLabel('users-data-product___user_roles')
 ```
 
 and edge collections compile as edge labels:
@@ -129,7 +130,7 @@ traverse_out('users-data-product.user_role_subscriptions')
 compiles to:
 
 ```groovy
-.outE('users-data-product.user_role_subscriptions')
+.outE('users-data-product___user_role_subscriptions')
 ```
 
 ## `_key` Handling
@@ -146,7 +147,7 @@ collection/key
 For example:
 
 ```text
-users-data-product.user_roles/admin
+users-data-product___user_roles/admin
 ```
 
 Therefore the compiler treats Opium `_key` specially:
@@ -159,7 +160,7 @@ compiles to:
 
 ```groovy
 g.V()
- .hasLabel('users-data-product.user_roles')
+ .hasLabel('users-data-product___user_roles')
  .hasId(TextP.endingWith('/admin'))
 ```
 
@@ -173,7 +174,7 @@ compiles to an `id()` transformation that strips the collection prefix:
 
 ```groovy
 g.V()
- .hasLabel('users-data-product.user_roles')
+ .hasLabel('users-data-product___user_roles')
  .id()
  .map{it.get().substring(it.get().lastIndexOf('/') + 1)}
 ```

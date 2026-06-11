@@ -1,6 +1,6 @@
 image:
   repository: arangodb
-  tag: 3.12.9.1
+  tag: 3.11.14
   pullPolicy: IfNotPresent
 
 service:
@@ -14,7 +14,7 @@ auth:
   passwordKey: root-password
 
 persistence:
-  enabled: false
+  enabled: true
   size: 4Gi
   storageClassName: ""
 

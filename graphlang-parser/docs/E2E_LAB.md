@@ -42,15 +42,20 @@ database: my_db
 graph: my_graph
 ```
 
+The lab pins ArangoDB `3.11.14`. Its Gremlin image uses TinkerPop `3.8.1` and
+ArangoDB TinkerPop Provider `4.0.0`, with the provider's edge-label AQL adjusted
+to avoid the `PARSE_COLLECTION()` function introduced after ArangoDB 3.11.
+
 ## Seed Data
 
 Seed script:
 
 ```text
-scripts/seed_opium_e2e.js
+scripts/seed_opium_e2e.py
 ```
 
-It drops and recreates `my_graph` in `my_db` with these collections:
+It drops and recreates `my_graph` in `my_db`. The names below are logical Opium
+resources; physical ArangoDB collections replace every `.` with `___`.
 
 Vertex collections:
 
@@ -174,8 +179,8 @@ python -m pip install -e ".[e2e]"
 Seed ArangoDB:
 
 ```powershell
-kubectl cp scripts/seed_opium_e2e.js gremlin-lab/arangodb-lab-0:/tmp/seed_opium_e2e.js
-kubectl exec -n gremlin-lab arangodb-lab-0 -- arangosh --server.endpoint tcp://127.0.0.1:8529 --server.username root --server.password change-me --javascript.execute /tmp/seed_opium_e2e.js
+kubectl port-forward -n gremlin-lab service/arangodb-lab 8529:8529
+python scripts/seed_opium_e2e.py --url http://127.0.0.1:8529
 ```
 
 Deploy Gremlin Server for the Opium graph:
@@ -210,7 +215,7 @@ scripts/gremlin_submit.py
 Example:
 
 ```powershell
-python scripts\gremlin_submit.py "g.V().hasLabel('users-data-product.user_roles').limit(4).elementMap()"
+python scripts\gremlin_submit.py "g.V().hasLabel('users-data-product___user_roles').limit(4).elementMap()"
 ```
 
 Useful probes:
@@ -218,7 +223,7 @@ Useful probes:
 ```groovy
 g.V().label().dedup()
 g.E().label().dedup()
-g.V().hasLabel('users-data-product.user_roles').limit(4).elementMap()
+g.V().hasLabel('users-data-product___user_roles').limit(4).elementMap()
 g.E().limit(4).project('id','label','props').by(id()).by(label()).by(valueMap())
 ```
 

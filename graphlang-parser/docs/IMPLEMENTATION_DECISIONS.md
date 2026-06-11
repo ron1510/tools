@@ -84,7 +84,7 @@ Tradeoff:
 The compiler emits strings such as:
 
 ```groovy
-g.V().hasLabel('users-data-product.user_roles').limit(100)
+g.V().hasLabel('users-data-product___user_roles').limit(100)
 ```
 
 Reason:
@@ -111,7 +111,7 @@ get('users-data-product.user_roles')
 Gremlin:
 
 ```groovy
-g.V().hasLabel('users-data-product.user_roles')
+g.V().hasLabel('users-data-product___user_roles')
 ```
 
 Reason:

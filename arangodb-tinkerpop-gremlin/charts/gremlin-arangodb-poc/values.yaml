@@ -1,6 +1,7 @@
 image:
-  repository: gremlin-arangodb-poc
-  tag: local
+  repository: ron1510/gremlin-arangodb
+  tag: 3.8.1-arangodb-4.0.0-arango311
+  digest: sha256:bee0ad2ca8ed566218f0b18aad0e03432ff2a36622057bf5a1c6ec978b577eb6
   pullPolicy: IfNotPresent
 
 service:
@@ -39,8 +40,8 @@ resources:
 
 podSecurityContext:
   runAsNonRoot: true
-  runAsUser: 10001
-  runAsGroup: 10001
+  runAsUser: 100
+  runAsGroup: 101
   seccompProfile:
     type: RuntimeDefault
 

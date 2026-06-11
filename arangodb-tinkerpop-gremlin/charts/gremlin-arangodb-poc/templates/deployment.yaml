@@ -16,21 +16,28 @@ spec:
       labels:
         app.kubernetes.io/name: {{ include "gremlin-arangodb-poc.name" . }}
         app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
     spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      containers:
-        - name: gremlin-server
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+      initContainers:
+        - name: wait-for-arangodb-graph
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: gremlin
-              containerPort: {{ .Values.service.port }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              auth="$(printf '%s:%s' "$ARANGO_USER" "$ARANGO_PASSWORD" | base64 | tr -d '\n')"
+              until wget -qO- \
+                --header="Authorization: Basic ${auth}" \
+                "http://${ARANGO_HOST}:${ARANGO_PORT}/_db/${ARANGO_DATABASE}/_api/gharial/${ARANGO_GRAPH}" \
+                >/dev/null; do
+                echo "Waiting for ArangoDB graph ${ARANGO_DATABASE}/${ARANGO_GRAPH}"
+                sleep 2
+              done
           env:
-            - name: GREMLIN_SERVER_PORT
-              value: {{ .Values.service.port | quote }}
-            - name: GREMLIN_TRAVERSAL_SOURCE
-              value: {{ .Values.gremlin.traversalSource | quote }}
             - name: ARANGO_HOST
               value: {{ .Values.arangodb.host | quote }}
             - name: ARANGO_PORT
@@ -39,14 +46,30 @@ spec:
               value: {{ .Values.arangodb.database | quote }}
             - name: ARANGO_GRAPH
               value: {{ .Values.arangodb.graph | quote }}
-            - name: ARANGO_ORPHAN_COLLECTIONS_YAML
-              value: {{ if gt (len .Values.arangodb.orphanCollections) 0 }}{{ printf "\"%s\"" (first .Values.arangodb.orphanCollections) | quote }}{{ else }}""{{ end }}
-            - name: ARANGO_EDGE_DEFINITIONS_YAML
-              value: {{ printf "\"%s\"" (first .Values.arangodb.edgeDefinitions) | quote }}
-            - name: ARANGO_GRAPH_TYPE
-              value: {{ .Values.arangodb.graphType | quote }}
-            - name: ARANGO_ENABLE_DATA_DEFINITION
-              value: {{ ternary "true" "false" .Values.arangodb.enableDataDefinition | quote }}
+            - name: ARANGO_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gremlin-arangodb-poc.secretName" . }}
+                  key: {{ .Values.arangodb.auth.usernameKey }}
+            - name: ARANGO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "gremlin-arangodb-poc.secretName" . }}
+                  key: {{ .Values.arangodb.auth.passwordKey }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+      containers:
+        - name: gremlin-server
+          image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /opt/gremlin-server/bin/gremlin-server.sh
+          args:
+            - /opt/gremlin-server/runtime-conf/gremlin-server.yaml
+          ports:
+            - name: gremlin
+              containerPort: {{ .Values.service.port }}
+          env:
             - name: ARANGO_USER
               valueFrom:
                 secretKeyRef:
@@ -59,6 +82,10 @@ spec:
                   key: {{ .Values.arangodb.auth.passwordKey }}
             - name: JAVA_OPTS
               value: "-Dgremlin.server.logLevel={{ .Values.gremlin.logLevel }}"
+          volumeMounts:
+            - name: runtime-config
+              mountPath: /opt/gremlin-server/runtime-conf
+              readOnly: true
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           readinessProbe:
@@ -73,3 +100,7 @@ spec:
             periodSeconds: 20
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: runtime-config
+          configMap:
+            name: {{ include "gremlin-arangodb-poc.fullname" . }}-config

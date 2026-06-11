@@ -184,8 +184,8 @@ Practice queries:
 ```groovy
 g.V().label().dedup()
 g.E().label().dedup()
-g.V().hasLabel('users-data-product.user_roles').count()
-g.V().hasLabel('users-data-product.user_roles').outE().otherV()
+g.V().hasLabel('users-data-product___user_roles').count()
+g.V().hasLabel('users-data-product___user_roles').outE().otherV()
 g.E().project('_id','_from','_to').by(id()).by(outV().id()).by(inV().id())
 ```
 
@@ -226,7 +226,7 @@ Read:
 
 Repo files to study:
 
-- `scripts/seed_opium_e2e.js`
+- `scripts/seed_opium_e2e.py`
 - `docs/OPIUM_SEMANTICS.md`
 - `docs/E2E_LAB.md`
 
@@ -350,7 +350,7 @@ If you want the fastest path, do this:
 2. Read `ast_nodes.py`.
 3. Read `compiler.py` alongside `tests/compiler`.
 4. Run manual Gremlin queries from `docs/E2E_LAB.md`.
-5. Read `scripts/seed_opium_e2e.js` and draw the graph on paper.
+5. Read `scripts/seed_opium_e2e.py` and draw the graph on paper.
 6. Read `tests/e2e/test_gremlin_arangodb.py` and predict each result before
    running it.
 7. Read `IMPLEMENTATION_DECISIONS.md` and mark every decision you agree or
