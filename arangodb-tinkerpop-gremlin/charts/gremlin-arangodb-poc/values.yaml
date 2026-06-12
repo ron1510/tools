@@ -17,11 +17,7 @@ arangodb:
   port: 8529
   database: my_db
   graph: my_graph
-  orphanCollections: []
-  edgeDefinitions:
-    - depends_on:[services]->[services]
   graphType: COMPLEX
-  enableDataDefinition: false
   auth:
     createSecret: true
     existingSecret: ""
@@ -29,6 +25,25 @@ arangodb:
     password: change-me
     usernameKey: username
     passwordKey: password
+
+topologySync:
+  enabled: true
+  schedule: "*/10 * * * *"
+  prune: true
+  edgePolicy: allVertexCollections
+  logLevel: INFO
+  image:
+    repository: python
+    tag: 3.12-alpine
+    digest: sha256:dbb1970cc04ce7d381c65efe8309c0c03d463e5b35c88f14d721796ad24cfbfd
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
 
 resources:
   requests:

@@ -7,6 +7,11 @@ metadata:
     app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "gremlin-arangodb-poc.name" . }}
@@ -18,26 +23,42 @@ spec:
         app.kubernetes.io/instance: {{ .Release.Name }}
       annotations:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/topology-script: {{ include (print $.Template.BasePath "/topology-script-configmap.yaml") . | sha256sum }}
     spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       initContainers:
-        - name: wait-for-arangodb-graph
+        - name: prepare-runtime-config
           image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - /bin/sh
             - -ec
             - |
-              auth="$(printf '%s:%s' "$ARANGO_USER" "$ARANGO_PASSWORD" | base64 | tr -d '\n')"
-              until wget -qO- \
-                --header="Authorization: Basic ${auth}" \
-                "http://${ARANGO_HOST}:${ARANGO_PORT}/_db/${ARANGO_DATABASE}/_api/gharial/${ARANGO_GRAPH}" \
-                >/dev/null; do
-                echo "Waiting for ArangoDB graph ${ARANGO_DATABASE}/${ARANGO_GRAPH}"
-                sleep 2
-              done
+              cp /config-source/gremlin-server.yaml /runtime-config/gremlin-server.yaml
+              cp /config-source/init.groovy /runtime-config/init.groovy
+          volumeMounts:
+            - name: config-source
+              mountPath: /config-source
+              readOnly: true
+            - name: runtime-config
+              mountPath: /runtime-config
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+        - name: synchronize-topology
+          image: "{{ .Values.topologySync.image.repository }}@{{ .Values.topologySync.image.digest }}"
+          imagePullPolicy: {{ .Values.topologySync.image.pullPolicy }}
+          command:
+            - python
+            - /opt/topology/topology_sync.py
+            - --output
+            - /runtime-config/arangodb.yaml
+            {{- if not .Values.topologySync.prune }}
+            - --no-prune
+            {{- end }}
           env:
+            - name: ARANGO_URL
+              value: {{ printf "http://%s:%v" .Values.arangodb.host .Values.arangodb.port | quote }}
             - name: ARANGO_HOST
               value: {{ .Values.arangodb.host | quote }}
             - name: ARANGO_PORT
@@ -46,6 +67,8 @@ spec:
               value: {{ .Values.arangodb.database | quote }}
             - name: ARANGO_GRAPH
               value: {{ .Values.arangodb.graph | quote }}
+            - name: ARANGO_GRAPH_TYPE
+              value: {{ .Values.arangodb.graphType | quote }}
             - name: ARANGO_USER
               valueFrom:
                 secretKeyRef:
@@ -56,8 +79,18 @@ spec:
                 secretKeyRef:
                   name: {{ include "gremlin-arangodb-poc.secretName" . }}
                   key: {{ .Values.arangodb.auth.passwordKey }}
+            - name: LOG_LEVEL
+              value: {{ .Values.topologySync.logLevel | quote }}
+          volumeMounts:
+            - name: topology-script
+              mountPath: /opt/topology
+              readOnly: true
+            - name: runtime-config
+              mountPath: /runtime-config
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.topologySync.resources | nindent 12 }}
       containers:
         - name: gremlin-server
           image: "{{ .Values.image.repository }}@{{ .Values.image.digest }}"
@@ -101,6 +134,12 @@ spec:
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
-        - name: runtime-config
+        - name: config-source
           configMap:
             name: {{ include "gremlin-arangodb-poc.fullname" . }}-config
+        - name: runtime-config
+          emptyDir: {}
+        - name: topology-script
+          configMap:
+            name: {{ include "gremlin-arangodb-poc.fullname" . }}-topology-sync
+            defaultMode: 0555

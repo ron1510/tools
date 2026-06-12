@@ -19,6 +19,8 @@ creating wrong Gremlin.
 
 from __future__ import annotations
 
+import logging
+
 from opium_parser.ast_nodes import (
     CallExpr,
     Expr,
@@ -42,6 +44,7 @@ from opium_parser.compiler_common import (
     parse_string_literal,
     parse_supported_kwargs,
     parse_variable_name_arg,
+    render_resource_args,
     string_args,
 )
 from opium_parser.compiler_match import apply_match
@@ -52,6 +55,8 @@ from opium_parser.compiler_projection import (
 )
 from opium_parser.errors import (
     InvalidOpiumSemanticError,
+    OpiumCompilerError,
+    OpiumParserError,
     UnsupportedOpiumCompilationError,
 )
 from opium_parser.gremlin_ir import GremlinTraversal
@@ -59,21 +64,150 @@ from opium_parser.gremlin_renderer import (
     quote_groovy,
     render_label_args,
 )
-from opium_parser.parser import parse_opium
-from opium_parser.resource_names import normalize_resource_names
+from opium_parser.observability import (
+    COMPILE_FAILED,
+    COMPILE_INTERNAL_ERROR,
+    COMPILE_STARTED,
+    COMPILE_SUCCEEDED,
+    elapsed_ms,
+    error_fields,
+    event_fields,
+    source_fields,
+    start_timer,
+)
+from opium_parser.parser import _parse_opium
 from opium_parser.types import GremlinGroovyString
+
+logger = logging.getLogger(__name__)
 
 
 def compile_opium_to_gremlin(source: str) -> GremlinGroovyString:
     """Parse an Opium expression and compile it into a Gremlin Groovy string."""
 
-    return compile_ast_to_gremlin(parse_opium(source))
+    total_started_ns = start_timer()
+    fields = source_fields(source)
+    logger.debug(
+        "Compiling Opium query",
+        extra=event_fields(COMPILE_STARTED, **fields),
+    )
+
+    parse_started_ns = start_timer()
+    parse_duration_ms: float | None = None
+    compile_started_ns: int | None = None
+    try:
+        query = _parse_opium(source)
+        parse_duration_ms = elapsed_ms(parse_started_ns)
+        compile_started_ns = start_timer()
+        gremlin = _compile_query(query)
+        compile_duration_ms = elapsed_ms(compile_started_ns)
+    except (OpiumParserError, OpiumCompilerError) as exc:
+        failed_parse_duration_ms = (
+            elapsed_ms(parse_started_ns)
+            if parse_duration_ms is None
+            else parse_duration_ms
+        )
+        failed_compile_duration_ms = (
+            None if compile_started_ns is None else elapsed_ms(compile_started_ns)
+        )
+        logger.warning(
+            "Opium query compilation failed",
+            extra=event_fields(
+                COMPILE_FAILED,
+                **fields,
+                parse_duration_ms=failed_parse_duration_ms,
+                compile_duration_ms=failed_compile_duration_ms,
+                total_duration_ms=elapsed_ms(total_started_ns),
+                **error_fields(exc.detail),
+            ),
+        )
+        raise
+    except Exception:
+        failed_parse_duration_ms = (
+            elapsed_ms(parse_started_ns)
+            if parse_duration_ms is None
+            else parse_duration_ms
+        )
+        failed_compile_duration_ms = (
+            None if compile_started_ns is None else elapsed_ms(compile_started_ns)
+        )
+        logger.exception(
+            "Unexpected Opium compiler failure",
+            extra=event_fields(
+                COMPILE_INTERNAL_ERROR,
+                **fields,
+                parse_duration_ms=failed_parse_duration_ms,
+                compile_duration_ms=failed_compile_duration_ms,
+                total_duration_ms=elapsed_ms(total_started_ns),
+            ),
+        )
+        raise
+
+    logger.info(
+        "Compiled Opium query",
+        extra=event_fields(
+            COMPILE_SUCCEEDED,
+            **fields,
+            ast_root_kind=query.root.kind,
+            gremlin_query=str(gremlin),
+            gremlin_query_length=len(gremlin),
+            parse_duration_ms=parse_duration_ms,
+            compile_duration_ms=compile_duration_ms,
+            total_duration_ms=elapsed_ms(total_started_ns),
+        ),
+    )
+    return gremlin
 
 
 def compile_ast_to_gremlin(query: Query) -> GremlinGroovyString:
     """Compile a typed Opium AST into a Gremlin Groovy string."""
 
-    return _compile_query(query)
+    started_ns = start_timer()
+    logger.debug(
+        "Compiling Opium AST",
+        extra=event_fields(
+            COMPILE_STARTED,
+            ast_root_kind=query.root.kind,
+        ),
+    )
+    try:
+        gremlin = _compile_query(query)
+    except OpiumCompilerError as exc:
+        logger.warning(
+            "Opium AST compilation failed",
+            extra=event_fields(
+                COMPILE_FAILED,
+                ast_root_kind=query.root.kind,
+                compile_duration_ms=elapsed_ms(started_ns),
+                total_duration_ms=elapsed_ms(started_ns),
+                **error_fields(exc.detail),
+            ),
+        )
+        raise
+    except Exception:
+        logger.exception(
+            "Unexpected Opium AST compiler failure",
+            extra=event_fields(
+                COMPILE_INTERNAL_ERROR,
+                ast_root_kind=query.root.kind,
+                compile_duration_ms=elapsed_ms(started_ns),
+                total_duration_ms=elapsed_ms(started_ns),
+            ),
+        )
+        raise
+
+    duration_ms = elapsed_ms(started_ns)
+    logger.info(
+        "Compiled Opium AST",
+        extra=event_fields(
+            COMPILE_SUCCEEDED,
+            ast_root_kind=query.root.kind,
+            gremlin_query=str(gremlin),
+            gremlin_query_length=len(gremlin),
+            compile_duration_ms=duration_ms,
+            total_duration_ms=duration_ms,
+        ),
+    )
+    return gremlin
 
 
 def _compile_query(query: Query) -> GremlinGroovyString:
@@ -140,8 +274,7 @@ def _compile_call(call: CallExpr, *, child: bool) -> GremlinTraversal:
                     code="compile.unsupported_root",
                     context={"function": "get", "position": "child"},
                 )
-            labels = string_args(call)
-            if not labels:
+            if not call.args:
                 msg = "get(...) requires at least one resource"
                 raise InvalidOpiumSemanticError(
                     msg,
@@ -151,9 +284,7 @@ def _compile_call(call: CallExpr, *, child: bool) -> GremlinTraversal:
                     context={"function": "get"},
                 )
             traversal = GremlinTraversal("g.V()")
-            traversal.add(
-                f".hasLabel({render_label_args(normalize_resource_names(labels))})"
-            )
+            traversal.add(f".hasLabel({render_resource_args(call)})")
             if "_key" in call.kwargs:
                 traversal.add(compile_key_filter(call.kwargs["_key"]))
             parse_supported_kwargs(call, {"_key"})
@@ -247,7 +378,6 @@ def _apply_method(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
 def _apply_traverse(
     traversal: GremlinTraversal, call: CallExpr | MethodCallExpr
 ) -> None:
-    labels = string_args(call)
     traversal_direction = direction(call)
     depth_range = parse_depth_range(call)
     parse_supported_kwargs(call, {"min_depth", "max_depth", "direction"})
@@ -265,7 +395,7 @@ def _apply_traverse(
     step = {"any": "bothE", "outbound": "outE", "inbound": "inE"}[
         str(traversal_direction)
     ]
-    traversal.add(f".{step}({render_label_args(normalize_resource_names(labels))})")
+    traversal.add(f".{step}({render_resource_args(call)})")
 
 
 def _apply_deep_traverse_into(
@@ -277,9 +407,7 @@ def _apply_deep_traverse_into(
     parse_supported_kwargs(into_call, set())
     labels = string_args(into_call)
     if labels:
-        traversal.add(
-            f".hasLabel({render_label_args(normalize_resource_names(labels))})"
-        )
+        traversal.add(f".hasLabel({render_resource_args(into_call)})")
 
 
 def _apply_into(traversal: GremlinTraversal, call: CallExpr | MethodCallExpr) -> None:
@@ -291,9 +419,7 @@ def _apply_into(traversal: GremlinTraversal, call: CallExpr | MethodCallExpr) ->
     # documents before deciding to move into vertices.
     traversal.add(".otherV()")
     if labels:
-        traversal.add(
-            f".hasLabel({render_label_args(normalize_resource_names(labels))})"
-        )
+        traversal.add(f".hasLabel({render_resource_args(call)})")
 
 
 def _apply_assign(traversal: GremlinTraversal, call: MethodCallExpr) -> None:

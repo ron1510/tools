@@ -1,3 +1,5 @@
+import logging
+
 from opium_parser.ast_nodes import (
     BinaryOpExpr,
     BooleanExpr,
@@ -33,6 +35,8 @@ from opium_parser.types import (
     TraversalDirection,
     VariableName,
 )
+
+logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 __all__ = [
     "BinaryOpExpr",

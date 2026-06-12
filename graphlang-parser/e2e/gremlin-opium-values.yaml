@@ -4,21 +4,6 @@ arangodb:
   database: my_db
   graph: my_graph
   graphType: COMPLEX
-  enableDataDefinition: false
   auth:
     username: root
     password: change-me
-  edgeDefinitions:
-    - users-data-product___user_role_subscriptions:[users-data-product___user_roles]->[users-data-product___user_roles]
-    - permissions-data-product___role_abilities:[users-data-product___user_roles]->[permissions-data-product___abilities]
-    - org-data-product___user_memberships:[users-data-product___users]->[org-data-product___teams]
-    - org-data-product___team_hierarchy:[org-data-product___teams]->[org-data-product___teams]
-    - users-data-product___user_role_assignments:[users-data-product___users]->[users-data-product___user_roles]
-    - org-data-product___department_memberships:[users-data-product___users]->[org-data-product___departments]
-    - delivery-data-product___department_projects:[org-data-product___departments]->[delivery-data-product___projects]
-    - platform-data-product___project_services:[delivery-data-product___projects]->[platform-data-product___services]
-    - platform-data-product___service_dependencies:[platform-data-product___services]->[platform-data-product___services]
-    - ops-data-product___incident_impacts:[ops-data-product___incidents]->[platform-data-product___services]
-    - infra-data-product___service_regions:[platform-data-product___services]->[infra-data-product___regions]
-    - infra-data-product___service_environments:[platform-data-product___services]->[infra-data-product___environments]
-    - knowledge-data-product___document_links:[knowledge-data-product___documents]->[knowledge-data-product___documents]

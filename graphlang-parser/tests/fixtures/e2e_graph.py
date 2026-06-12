@@ -1,5 +1,8 @@
 """Logical Opium names and physical labels for the live e2e graph."""
 
+from opium_parser.resource_names import normalize_resource_name
+from opium_parser.types import ResourceName
+
 ROLE = "users-data-product.user_roles"
 USER = "users-data-product.users"
 ABILITY = "permissions-data-product.abilities"
@@ -28,7 +31,7 @@ DOCUMENT_LINK = "knowledge-data-product.document_links"
 
 
 def physical_label(resource: str) -> str:
-    return resource.replace(".", "___")
+    return str(normalize_resource_name(ResourceName(resource)))
 
 
 VERTEX_LABELS = {

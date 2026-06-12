@@ -1,0 +1,28 @@
+{{- if .Values.topologySync.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "gremlin-arangodb-poc.fullname" . }}-topology-sync
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "gremlin-arangodb-poc.fullname" . }}-topology-sync
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: [{{ include "gremlin-arangodb-poc.fullname" . | quote }}]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "gremlin-arangodb-poc.fullname" . }}-topology-sync
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "gremlin-arangodb-poc.fullname" . }}-topology-sync
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "gremlin-arangodb-poc.fullname" . }}-topology-sync
+{{- end }}

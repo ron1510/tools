@@ -2,5 +2,5 @@ apiVersion: v2
 name: gremlin-arangodb-poc
 description: Helm chart for a lab Gremlin Server connected to an existing ArangoDB graph.
 type: application
-version: 0.2.1
+version: 0.3.0
 appVersion: "3.8.1"

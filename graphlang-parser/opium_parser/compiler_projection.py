@@ -4,13 +4,15 @@ from opium_parser.ast_nodes import CallExpr, Expr, StringExpr, SubscriptExpr
 from opium_parser.compiler_common import parse_projection_field, parse_variable_name_arg
 from opium_parser.errors import UnsupportedOpiumCompilationError
 from opium_parser.gremlin_renderer import quote_groovy
+from opium_parser.resource_names import COLLECTION_SEPARATOR, RESOURCE_SEPARATOR
 
 
 def _logical_id_projection(source: str) -> str:
     return (
         f"{source}.map{{def id=it.get(); def slash=id.indexOf('/'); "
-        "slash < 0 ? id.replace('___', '.') : "
-        "id.substring(0, slash).replace('___', '.') + id.substring(slash)}"
+        f"slash < 0 ? id.replace('{COLLECTION_SEPARATOR}', '{RESOURCE_SEPARATOR}') : "
+        f"id.substring(0, slash).replace('{COLLECTION_SEPARATOR}', "
+        f"'{RESOURCE_SEPARATOR}') + id.substring(slash)}}"
     )
 
 

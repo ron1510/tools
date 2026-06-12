@@ -1,0 +1,10 @@
+{{- if ne .Values.topologySync.edgePolicy "allVertexCollections" }}
+{{- fail "topologySync.edgePolicy must be allVertexCollections" }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "gremlin-arangodb-poc.fullname" . }}-topology-sync
+data:
+  topology_sync.py: |
+{{ .Files.Get "scripts/topology_sync.py" | indent 4 }}

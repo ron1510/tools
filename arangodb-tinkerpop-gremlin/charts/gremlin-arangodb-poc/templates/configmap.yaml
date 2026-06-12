@@ -28,23 +28,6 @@ data:
         config:
           sessionTimeout: 28800000
       - className: org.apache.tinkerpop.gremlin.server.op.traversal.TraversalOpProcessor
-  arangodb.yaml: |
-    gremlin:
-      graph: "com.arangodb.tinkerpop.gremlin.structure.ArangoDBGraph"
-      arangodb:
-        conf:
-          graph:
-            db: {{ .Values.arangodb.database | quote }}
-            name: {{ .Values.arangodb.graph | quote }}
-            type: {{ .Values.arangodb.graphType }}
-            enableDataDefinition: {{ .Values.arangodb.enableDataDefinition }}
-            orphanCollections: {{ .Values.arangodb.orphanCollections | toJson }}
-            edgeDefinitions: {{ .Values.arangodb.edgeDefinitions | toJson }}
-          driver:
-            user: "${env:ARANGO_USER}"
-            password: "${env:ARANGO_PASSWORD}"
-            hosts:
-              - {{ printf "%s:%v" .Values.arangodb.host .Values.arangodb.port | quote }}
   init.groovy: |
     def globals = [:]
     globals << [{{ .Values.gremlin.traversalSource | quote }}: traversal().withEmbedded(graph)]

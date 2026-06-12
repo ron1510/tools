@@ -39,3 +39,17 @@ def normalize_resource_names(
     names: Sequence[ResourceName],
 ) -> list[ArangoCollectionName]:
     return [normalize_resource_name(name) for name in names]
+
+
+def denormalize_collection_name(name: ArangoCollectionName) -> ResourceName:
+    """Return the logical Opium resource name for a physical collection."""
+
+    return ResourceName(str(name).replace(COLLECTION_SEPARATOR, RESOURCE_SEPARATOR))
+
+
+def denormalize_element_id(element_id: str) -> str:
+    """Translate only the collection prefix of an Arango element id."""
+
+    collection, separator, key = element_id.partition("/")
+    logical_collection = denormalize_collection_name(ArangoCollectionName(collection))
+    return f"{logical_collection}{separator}{key}"

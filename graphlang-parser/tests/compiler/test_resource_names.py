@@ -2,8 +2,12 @@ import pytest
 
 from opium_parser import compile_opium_to_gremlin
 from opium_parser.errors import InvalidOpiumSemanticError
-from opium_parser.resource_names import normalize_resource_name
-from opium_parser.types import ResourceName
+from opium_parser.resource_names import (
+    denormalize_collection_name,
+    denormalize_element_id,
+    normalize_resource_name,
+)
+from opium_parser.types import ArangoCollectionName, ResourceName
 
 
 @pytest.mark.parametrize(
@@ -23,3 +27,19 @@ def test_reserved_physical_separator_is_rejected():
         compile_opium_to_gremlin("get('users-data-product___user_roles')")
 
     assert exc_info.value.detail.code == "semantic.ambiguous_resource_name"
+
+
+def test_denormalize_collection_name():
+    assert (
+        denormalize_collection_name(
+            ArangoCollectionName("users-data-product___user_roles")
+        )
+        == "users-data-product.user_roles"
+    )
+
+
+def test_denormalize_element_id_changes_only_collection_prefix():
+    assert (
+        denormalize_element_id("users-data-product___user_roles/key___suffix")
+        == "users-data-product.user_roles/key___suffix"
+    )

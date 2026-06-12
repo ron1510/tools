@@ -128,6 +128,53 @@ except OpiumParserError as exc:
 The old exception classes are still used, but callers can now inspect stable
 error codes, stage, expected/actual values, optional source span, and context.
 
+## Logging
+
+The library emits structured standard-library logging records from:
+
+```text
+opium_parser.parser
+opium_parser.compiler
+```
+
+It installs only a `NullHandler`; applications remain responsible for log
+levels, handlers, formatting, destinations, and retention.
+
+```python
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(event)s %(message)s",
+)
+```
+
+Successful parsing and compilation emit `INFO` records. Expected invalid or
+unsupported queries emit `WARNING` records without tracebacks. Unexpected
+internal failures emit `ERROR` records with exception information.
+
+Stable event names include:
+
+```text
+opium.parse.started
+opium.parse.succeeded
+opium.parse.failed
+opium.parse.internal_error
+opium.compile.started
+opium.compile.succeeded
+opium.compile.failed
+opium.compile.internal_error
+```
+
+Records provide structured fields such as `opium_source`, `gremlin_query`,
+`parse_duration_ms`, `compile_duration_ms`, `total_duration_ms`, `error_code`,
+`error_stage`, and `error_context`. Start events use `DEBUG`; successful
+completion events use `INFO`.
+
+Opium and generated Gremlin queries are logged in full. They can contain
+identifiers and literal values, so consuming applications must choose
+appropriate access controls and retention policies.
+
 ## Compilation Limitations
 
 The compiler is intentionally conservative. It supports the documented common

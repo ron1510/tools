@@ -4,8 +4,11 @@
 2. Inspect logs:
    kubectl logs -n {{ .Release.Namespace }} deployment/{{ include "gremlin-arangodb-poc.fullname" . }} -f
 
-3. Port-forward Gremlin Server:
+3. Inspect topology synchronization:
+   kubectl logs -n {{ .Release.Namespace }} job/<topology-sync-job-name>
+
+4. Port-forward Gremlin Server:
    kubectl port-forward -n {{ .Release.Namespace }} service/{{ include "gremlin-arangodb-poc.fullname" . }} 8182:{{ .Values.service.port }}
 
-4. Run the smoke test from the repo root:
+5. Run the smoke test from the repo root:
    python scripts/smoke_test.py --uri ws://localhost:8182/gremlin

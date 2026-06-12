@@ -46,6 +46,10 @@ def string_args(call: CallExpr | MethodCallExpr) -> list[ResourceName]:
     return [parse_resource_arg(arg, str(name)) for arg in call.args]
 
 
+def render_resource_args(call: CallExpr | MethodCallExpr) -> str:
+    return str(render_label_args(normalize_resource_names(string_args(call))))
+
+
 def parse_resource_arg(expr: Expr, owner: str) -> ResourceName:
     return ResourceName(parse_string_literal(expr, f"{owner} resource"))
 
@@ -406,7 +410,7 @@ def compile_key_membership(value: Expr, *, negate: bool) -> str:
 
 
 def deep_repeat_body(call: CallExpr | MethodCallExpr) -> str:
-    labels = render_label_args(normalize_resource_names(string_args(call)))
+    labels = render_resource_args(call)
     value = direction(call)
     if value == "outbound":
         return f"outE({labels}).as('opium_edge').inV()"

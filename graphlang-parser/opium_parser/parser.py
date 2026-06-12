@@ -11,6 +11,7 @@ already recognized.
 
 from __future__ import annotations
 
+import logging
 from functools import lru_cache
 from importlib import resources
 
@@ -25,7 +26,20 @@ from opium_parser.errors import (
     UnsupportedOpiumSyntaxError,
     error_context,
 )
+from opium_parser.observability import (
+    PARSE_FAILED,
+    PARSE_INTERNAL_ERROR,
+    PARSE_STARTED,
+    PARSE_SUCCEEDED,
+    elapsed_ms,
+    error_fields,
+    event_fields,
+    source_fields,
+    start_timer,
+)
 from opium_parser.transformer import OpiumTransformer
+
+logger = logging.getLogger(__name__)
 
 
 def parse_opium(source: str) -> Query:
@@ -34,6 +48,49 @@ def parse_opium(source: str) -> Query:
     The parser recognizes the documented Opium expression subset only. It never
     evaluates or executes user-provided input.
     """
+    started_ns = start_timer()
+    fields = source_fields(source)
+    logger.debug(
+        "Parsing Opium query",
+        extra=event_fields(PARSE_STARTED, **fields),
+    )
+    try:
+        query = _parse_opium(source)
+    except OpiumParserError as exc:
+        logger.warning(
+            "Opium query parsing failed",
+            extra=event_fields(
+                PARSE_FAILED,
+                **fields,
+                parse_duration_ms=elapsed_ms(started_ns),
+                **error_fields(exc.detail),
+            ),
+        )
+        raise
+    except Exception:
+        logger.exception(
+            "Unexpected Opium parser failure",
+            extra=event_fields(
+                PARSE_INTERNAL_ERROR,
+                **fields,
+                parse_duration_ms=elapsed_ms(started_ns),
+            ),
+        )
+        raise
+
+    logger.info(
+        "Parsed Opium query",
+        extra=event_fields(
+            PARSE_SUCCEEDED,
+            **fields,
+            ast_root_kind=query.root.kind,
+            parse_duration_ms=elapsed_ms(started_ns),
+        ),
+    )
+    return query
+
+
+def _parse_opium(source: str) -> Query:
     try:
         tree = _parser().parse(source)
         result = OpiumTransformer().transform(tree)

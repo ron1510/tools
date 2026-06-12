@@ -10,6 +10,9 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
+from opium_parser.resource_names import normalize_resource_name
+from opium_parser.types import ResourceName
+
 JsonValue = dict[str, Any] | list[Any]
 
 LOGICAL_COLLECTIONS = {
@@ -39,7 +42,8 @@ LOGICAL_COLLECTIONS = {
     "document_links": "knowledge-data-product.document_links",
 }
 COLLECTIONS = {
-    key: name.replace(".", "___") for key, name in LOGICAL_COLLECTIONS.items()
+    key: str(normalize_resource_name(ResourceName(name)))
+    for key, name in LOGICAL_COLLECTIONS.items()
 }
 
 VERTEX_KEYS = (
