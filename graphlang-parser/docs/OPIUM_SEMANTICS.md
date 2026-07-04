@@ -130,8 +130,9 @@ users-data-product.user_roles/admin
 
 If the current cursor is on edges, projecting `_from` or `_to` should return
 those system field values. If the Gremlin provider does not expose them as normal
-properties, the compiler may use provider-specific Gremlin such as `outV().id()`
-and `inV().id()` to preserve the Opium result shape.
+properties, the compiler may use provider-specific Gremlin to reconstruct them.
+The current ArangoDB TinkerPop Provider path parses endpoint ids from the edge
+string representation because adjacent-vertex steps fail for dangling endpoints.
 
 `_from` and `_to` values are full ids, equivalent to the ids of the source and
 target nodes.
@@ -168,6 +169,27 @@ get('users-data-product.user_roles', _key='admin').traverse().into()
 
 returns the full connected node documents reached from the edges found by
 `traverse()`.
+
+Dangling edge documents may exist in ArangoDB. `traverse(...)` still treats
+those edge documents as real edge results when the provider exposes them from
+the current node. `into(...)` cannot materialize a missing endpoint, so dangling
+edges are skipped at the vertex-materialization boundary. For example, an
+outbound edge whose `_to` points to a missing document can appear in
+`traverse_out(...)` results, but it does not produce a row after
+`traverse_out(...).into(...)`.
+
+The compiler uses provider-specific endpoint-id lookup for this boundary rather
+than adjacent-vertex steps. Conceptually:
+
+```text
+outbound -> parse `_to`, then g.V(_to)
+inbound  -> parse `_from`, then g.V(_from)
+any      -> parse both endpoints, choose the one that is not the current vertex,
+            then g.V(other)
+```
+
+If the endpoint id does not exist, `g.V(id)` produces no row, so the dangling
+edge is skipped without failing the query.
 
 ### Direction
 

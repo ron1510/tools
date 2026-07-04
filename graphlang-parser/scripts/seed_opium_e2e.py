@@ -359,6 +359,20 @@ def edge_documents(regions: list[str]) -> dict[str, list[dict[str, Any]]]:
             edge("admin-approve", "roles", "admin", "abilities", "approve"),
             edge("editor-write", "roles", "editor", "abilities", "write"),
             edge("viewer-read", "roles", "viewer", "abilities", "read"),
+            edge(
+                "auditor-missing-ability",
+                "roles",
+                "auditor",
+                "abilities",
+                "missing-ability",
+            ),
+            edge(
+                "missing-role-read",
+                "roles",
+                "missing-role",
+                "abilities",
+                "read",
+            ),
         ],
         "memberships": [
             edge(
@@ -405,6 +419,24 @@ def edge_documents(regions: list[str]) -> dict[str, list[dict[str, Any]]]:
                 "executive",
                 role="owner",
                 allocation=1.0,
+            ),
+            edge(
+                "bob-missing-team",
+                "users",
+                "bob",
+                "teams",
+                "missing-team",
+                role="dangling_target",
+                allocation=0.25,
+            ),
+            edge(
+                "missing-user-qa",
+                "users",
+                "missing-user",
+                "teams",
+                "qa",
+                role="dangling_source",
+                allocation=0.25,
             ),
         ],
         "team_hierarchy": [
@@ -508,6 +540,20 @@ def edge_documents(regions: list[str]) -> dict[str, list[dict[str, Any]]]:
                 "services",
                 "service-11",
             ),
+            edge(
+                "service-11-missing-service",
+                "services",
+                "service-11",
+                "services",
+                "missing-service",
+            ),
+            edge(
+                "missing-service-service-0",
+                "services",
+                "missing-service",
+                "services",
+                "service-0",
+            ),
         ],
         "incident_impacts": [
             edge(
@@ -529,6 +575,22 @@ def edge_documents(regions: list[str]) -> dict[str, list[dict[str, Any]]]:
                 regions[index % 5],
             )
             for index in range(12)
+        ]
+        + [
+            edge(
+                "service-1-missing-region",
+                "services",
+                "service-1",
+                "regions",
+                "missing-region",
+            ),
+            edge(
+                "missing-service-global",
+                "services",
+                "missing-service",
+                "regions",
+                "global",
+            ),
         ],
         "service_environments": [
             *[
@@ -543,6 +605,20 @@ def edge_documents(regions: list[str]) -> dict[str, list[dict[str, Any]]]:
             ],
             edge("service-0-dev", "services", "service-0", "environments", "dev"),
             edge("service-0-dr", "services", "service-0", "environments", "dr"),
+            edge(
+                "service-1-missing-environment",
+                "services",
+                "service-1",
+                "environments",
+                "missing-environment",
+            ),
+            edge(
+                "missing-service-prod",
+                "services",
+                "missing-service",
+                "environments",
+                "prod",
+            ),
         ],
         "document_links": [
             edge(
@@ -553,6 +629,16 @@ def edge_documents(regions: list[str]) -> dict[str, list[dict[str, Any]]]:
                 f"doc-{index + 1}",
             )
             for index in range(14)
+        ]
+        + [
+            edge(
+                "doc-14-missing-doc",
+                "documents",
+                "doc-14",
+                "documents",
+                "missing-doc",
+            ),
+            edge("missing-doc-doc-0", "documents", "missing-doc", "documents", "doc-0"),
         ],
     }
 

@@ -2,6 +2,7 @@ import pytest
 
 from opium_parser import compile_opium_to_gremlin
 from opium_parser.errors import InvalidOpiumSemanticError
+from tests.compiler.expected_gremlin import OUT_VERTEX_STEP
 
 
 def test_compile_match_keyword_equality():
@@ -76,7 +77,7 @@ def test_compile_match_subquery_operand():
             ")"
         )
         == "g.V().hasLabel('roles')"
-        ".filter(__.outE('role_abilities').otherV().hasLabel('abilities')"
+        f".filter(__.outE('role_abilities'){OUT_VERTEX_STEP}.hasLabel('abilities')"
         ".hasId(TextP.endingWith('/write')))"
     )
 

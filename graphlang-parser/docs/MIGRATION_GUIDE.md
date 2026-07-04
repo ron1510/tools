@@ -77,9 +77,9 @@ Before using the compiler against an org backend, verify:
 2. Provider graph mode is `COMPLEX`.
 3. Collection names are exposed as Gremlin labels.
 4. Gremlin element ids are returned as `collection/key`.
-5. `_from` and `_to` can be reconstructed from edge `outV().id()` and
-   `inV().id()`.
-6. Gremlin Server allows the Groovy closure used for `_key` projection.
+5. The provider edge string includes source and target endpoint ids.
+6. Gremlin Server allows the Groovy closures used for `_key`, `_from`, `_to`,
+   and dangling-safe `into(...)`.
 7. `TextP.regex(...)` is available.
 8. `P.gte(90.0d)`-style Java double literals work.
 9. `has(field, null)` behaves as expected for explicit null properties.
@@ -126,7 +126,7 @@ After port-forwarding Gremlin Server:
 python scripts\gremlin_submit.py "g.V().label().dedup()"
 python scripts\gremlin_submit.py "g.E().label().dedup()"
 python scripts\gremlin_submit.py "g.V().limit(3).id()"
-python scripts\gremlin_submit.py "g.E().limit(3).project('id','from','to').by(id()).by(outV().id()).by(inV().id())"
+python scripts\gremlin_submit.py "g.E().limit(3).map{it.get().toString()}"
 ```
 
 Expected:
@@ -134,7 +134,7 @@ Expected:
 - vertex labels are Arango vertex collection names
 - edge labels are Arango edge collection names
 - ids look like `collection/key`
-- edge endpoints are full Arango ids
+- edge string values include full source and target Arango ids
 
 ## How To Bring In Org-Specific Data
 
@@ -166,4 +166,3 @@ Before merging into an org repo, tag or record:
 
 The current repo intentionally separates "parsed", "compiled", and "e2e
 proven". Keep that distinction in release notes.
-

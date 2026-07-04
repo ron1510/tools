@@ -117,11 +117,15 @@ into('node_collection')
 Compilation:
 
 ```groovy
-.otherV()
-.otherV().hasLabel('node_collection')
+.flatMap{...g.V(target)...}
+.flatMap{...g.V(source)...}
+.as('opium_current_vertex').bothE(...).flatMap{...g.V(other)...}
 ```
 
-Status: unit-tested and e2e-tested.
+Status: unit-tested and e2e-tested. The compiler parses endpoint ids from the
+provider edge string and looks them up with `g.V(id)`, because adjacent-vertex
+steps fail on dangling endpoints. Dangling edge documents may be inspected as
+edge results, but `into(...)` only returns materialized vertices.
 
 ### `skip`, `limit`
 
@@ -241,7 +245,8 @@ Portability concern:
 - `_key` projection uses a Groovy closure
 - `_from` and `_to` are Opium edge system fields. The current ArangoDB TinkerPop
   lab does not expose them via `values('_from')` / `values('_to')`, so the
-  compiler returns them using `outV().id()` and `inV().id()`.
+  compiler parses them from the provider edge string. This keeps dangling edge
+  endpoint ids projectable without materializing missing vertices.
 
 ### `match`, `match_all`, `match_any`
 

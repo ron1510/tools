@@ -46,7 +46,8 @@ if sys.platform.startswith("win"):
 
 GREMLIN_URI = os.getenv("GREMLIN_URI", "ws://localhost:8182/gremlin")
 TRAVERSAL_SOURCE = os.getenv("GREMLIN_TRAVERSAL_SOURCE", "g")
-RUN_E2E = os.getenv("OPIUM_RUN_E2E") == "1"
+# RUN_E2E = os.getenv("OPIUM_RUN_E2E") == "1"
+RUN_E2E = True
 
 
 @pytest.fixture(scope="module")
@@ -174,6 +175,335 @@ def test_role_to_ability_traversal_and_unique(client):
         f"get('{ROLE}').traverse_out('{ROLE_ABILITY}')"
         f".into('{ABILITY}').unique().count()",
     ) == [4]
+
+
+def test_dangling_outbound_edge_can_be_inspected_but_not_materialized(client):
+    assert run_query(
+        client,
+        f"get('{ROLE}', _key='auditor').traverse_out('{ROLE_ABILITY}')['_key']",
+    ) == ["auditor-missing-ability"]
+    assert run_query(
+        client,
+        f"get('{ROLE}', _key='auditor').traverse_out('{ROLE_ABILITY}')"
+        f".into('{ABILITY}')['_key']",
+    ) == []
+
+
+def test_terminal_traverse_returns_safe_edge_documents_with_dangling_edge(client):
+    rows = run_query(
+        client,
+        f"get('{ROLE}', _key='auditor').traverse()",
+    )
+
+    by_key = {row["_key"]: row for row in rows}
+    dangling = by_key["auditor-missing-ability"]
+    assert dangling["_id"] == f"{ROLE_ABILITY}/auditor-missing-ability"
+    assert dangling["_from"] == f"{ROLE}/auditor"
+    assert dangling["_to"] == f"{ABILITY}/missing-ability"
+
+
+def test_terminal_labeled_traverse_returns_safe_edge_documents(client):
+    rows = run_query(
+        client,
+        f"get('{USER}', _key='bob').traverse_out('{MEMBERSHIP}')",
+    )
+
+    by_key = {row["_key"]: row for row in rows}
+    assert set(by_key) == {"bob-missing-team", "bob-platform"}
+    assert by_key["bob-missing-team"]["_from"] == f"{USER}/bob"
+    assert by_key["bob-missing-team"]["_to"] == f"{TEAM}/missing-team"
+    assert by_key["bob-platform"]["_to"] == f"{TEAM}/platform"
+
+
+def test_dangling_inbound_edge_can_be_inspected_but_not_materialized(client):
+    assert sorted(
+        run_query(
+            client,
+            f"get('{ABILITY}', _key='read').traverse_in('{ROLE_ABILITY}')['_key']",
+        )
+    ) == ["missing-role-read", "viewer-read"]
+    assert run_query(
+        client,
+        f"get('{ABILITY}', _key='read').traverse_in('{ROLE_ABILITY}')"
+        f".into('{ROLE}')['_key']",
+    ) == ["viewer"]
+
+
+@pytest.mark.parametrize(
+    ("source", "required_edges", "required_vertices", "forbidden_vertices"),
+    [
+        (
+            f"get('{ROLE}', _key='auditor')",
+            ["auditor-missing-ability"],
+            ["admin", "dave"],
+            ["missing-ability"],
+        ),
+        (
+            f"get('{ABILITY}', _key='read')",
+            ["missing-role-read", "viewer-read"],
+            ["viewer"],
+            ["missing-role"],
+        ),
+        (
+            f"get('{USER}', _key='bob')",
+            ["bob-missing-team", "bob-platform"],
+            ["platform"],
+            ["missing-team"],
+        ),
+        (
+            f"get('{TEAM}', _key='qa')",
+            ["missing-user-qa"],
+            ["platform"],
+            ["missing-user"],
+        ),
+        (
+            f"get('{SERVICE}', _key='service-11')",
+            ["service-11-missing-service"],
+            ["project-7", "service-10", "service-5"],
+            ["missing-service"],
+        ),
+        (
+            f"get('{SERVICE}', _key='service-0')",
+            ["missing-service-service-0", "service-0-service-1", "service-0-service-5"],
+            ["service-1", "service-5"],
+            ["missing-service"],
+        ),
+        (
+            f"get('{DOCUMENT}', _key='doc-14')",
+            ["doc-14-missing-doc"],
+            ["doc-13"],
+            ["missing-doc"],
+        ),
+        (
+            f"get('{DOCUMENT}', _key='doc-0')",
+            ["doc-0-doc-1", "missing-doc-doc-0"],
+            ["doc-1"],
+            ["missing-doc"],
+        ),
+    ],
+)
+def test_dangling_edges_across_domains_are_inspectable_and_safe_to_enter(
+    client,
+    source,
+    required_edges,
+    required_vertices,
+    forbidden_vertices,
+):
+    edge_rows = run_query(client, f"{source}.traverse()['_key']")
+    vertex_rows = run_query(client, f"{source}.traverse().into()['_key']")
+
+    assert set(required_edges) <= set(edge_rows)
+    assert set(required_vertices) <= set(vertex_rows)
+    assert not (set(forbidden_vertices) & set(vertex_rows))
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        (
+            f"get('{ROLE}', _key='auditor').traverse_out('{ROLE_ABILITY}')"
+            ".select('_key', '_from', '_to')",
+            [
+                {
+                    "_key": "auditor-missing-ability",
+                    "_from": f"{ROLE}/auditor",
+                    "_to": f"{ABILITY}/missing-ability",
+                }
+            ],
+        ),
+        (
+            f"get('{ABILITY}', _key='read').traverse_in('{ROLE_ABILITY}')"
+            ".select('_key', '_from', '_to')",
+            [
+                {
+                    "_key": "missing-role-read",
+                    "_from": f"{ROLE}/missing-role",
+                    "_to": f"{ABILITY}/read",
+                },
+                {
+                    "_key": "viewer-read",
+                    "_from": f"{ROLE}/viewer",
+                    "_to": f"{ABILITY}/read",
+                },
+            ],
+        ),
+        (
+            f"get('{SERVICE}', _key='service-11').traverse_out('{SERVICE_DEPENDENCY}')"
+            ".select('_key', '_from', '_to')",
+            [
+                {
+                    "_key": "service-11-missing-service",
+                    "_from": f"{SERVICE}/service-11",
+                    "_to": f"{SERVICE}/missing-service",
+                }
+            ],
+        ),
+        (
+            f"get('{DOCUMENT}', _key='doc-14').traverse_out('{DOCUMENT_LINK}')"
+            ".select('_key', '_from', '_to')",
+            [
+                {
+                    "_key": "doc-14-missing-doc",
+                    "_from": f"{DOCUMENT}/doc-14",
+                    "_to": f"{DOCUMENT}/missing-doc",
+                }
+            ],
+        ),
+    ],
+)
+def test_dangling_edge_system_fields_are_preserved(client, query, expected):
+    rows = sorted(run_query(client, query), key=lambda row: row["_key"])
+    assert rows == expected
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        (
+            f"get('{ROLE}', _key='auditor').array("
+            f"traverse_out('{ROLE_ABILITY}')['_key'])",
+            [["auditor-missing-ability"]],
+        ),
+        (
+            f"get('{ROLE}', _key='auditor').array("
+            f"traverse_out('{ROLE_ABILITY}').into('{ABILITY}')['_key'])",
+            [[]],
+        ),
+        (
+            f"get('{USER}', _key='bob').array("
+            f"traverse_out('{MEMBERSHIP}')['_key'])",
+            [["bob-missing-team", "bob-platform"]],
+        ),
+        (
+            f"get('{USER}', _key='bob').array("
+            f"traverse_out('{MEMBERSHIP}').into('{TEAM}')['_key'])",
+            [["platform"]],
+        ),
+        (
+            f"get('{DOCUMENT}', _key='doc-14').array("
+            f"traverse_out('{DOCUMENT_LINK}')['_key']).flatten()",
+            ["doc-14-missing-doc"],
+        ),
+        (
+            f"get('{DOCUMENT}', _key='doc-14').array("
+            f"traverse_out('{DOCUMENT_LINK}').into('{DOCUMENT}')['_key']).flatten()",
+            [],
+        ),
+    ],
+)
+def test_dangling_edges_in_array_and_flatten_shapes(client, query, expected):
+    rows = run_query(client, query)
+    if rows and isinstance(rows[0], list):
+        rows = [sorted(row) for row in rows]
+    assert rows == expected
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        (
+            f"get('{ROLE}', _key='auditor').traverse_out('{ROLE_ABILITY}').count()",
+            [1],
+        ),
+        (
+            f"get('{ROLE}', _key='auditor').traverse_out('{ROLE_ABILITY}')"
+            f".into('{ABILITY}').count()",
+            [0],
+        ),
+        (
+            f"get('{USER}', _key='bob').traverse_out('{MEMBERSHIP}').count()",
+            [2],
+        ),
+        (
+            f"get('{USER}', _key='bob').traverse_out('{MEMBERSHIP}')"
+            f".into('{TEAM}').count()",
+            [1],
+        ),
+        (
+            f"get('{SERVICE}', _key='service-11')"
+            f".traverse_out('{SERVICE_DEPENDENCY}').count()",
+            [1],
+        ),
+        (
+            f"get('{SERVICE}', _key='service-11')"
+            f".traverse_out('{SERVICE_DEPENDENCY}').into('{SERVICE}').count()",
+            [0],
+        ),
+    ],
+)
+def test_dangling_edge_counts_distinguish_edges_from_vertices(client, query, expected):
+    assert run_query(client, query) == expected
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        (
+            f"get('{ROLE}').match("
+            f"traverse_out('{ROLE_ABILITY}').count() >= 1)['_key']",
+            ["admin", "auditor", "editor", "viewer"],
+        ),
+        (
+            f"get('{ROLE}').match("
+            f"traverse_out('{ROLE_ABILITY}').into('{ABILITY}').count() >= 1)['_key']",
+            ["admin", "editor", "viewer"],
+        ),
+        (
+            f"get('{USER}').match("
+            f"traverse_out('{MEMBERSHIP}').count() >= 2)['_key']",
+            ["bob"],
+        ),
+        (
+            f"get('{USER}').match("
+            f"traverse_out('{MEMBERSHIP}').into('{TEAM}').count() >= 2)['_key']",
+            [],
+        ),
+        (
+            f"get('{SERVICE}').match("
+            f"traverse_out('{SERVICE_DEPENDENCY}').count() >= 1)['_key']",
+            sorted(f"service-{index}" for index in range(12)),
+        ),
+        (
+            f"get('{DOCUMENT}').match("
+            f"traverse_out('{DOCUMENT_LINK}', max_depth=2).into('{DOCUMENT}')"
+            ".count() >= 1)['_key']",
+            sorted(f"doc-{index}" for index in range(14)),
+        ),
+    ],
+)
+def test_dangling_edges_inside_match_subqueries(client, query, expected):
+    assert sorted(run_query(client, query)) == expected
+
+
+@pytest.mark.parametrize(
+    ("query", "expected"),
+    [
+        (
+            f"get('{SERVICE}', _key='service-11')"
+            f".traverse_out('{SERVICE_DEPENDENCY}', max_depth=2)['_key']",
+            [],
+        ),
+        (
+            f"get('{SERVICE}', _key='service-11')"
+            f".traverse_out('{SERVICE_DEPENDENCY}', max_depth=2)"
+            f".into('{SERVICE}')['_key']",
+            [],
+        ),
+        (
+            f"get('{DOCUMENT}', _key='doc-13')"
+            f".traverse_out('{DOCUMENT_LINK}', max_depth=3)['_key']",
+            ["doc-13-doc-14"],
+        ),
+        (
+            f"get('{DOCUMENT}', _key='doc-13')"
+            f".traverse_out('{DOCUMENT_LINK}', max_depth=3)"
+            f".into('{DOCUMENT}')['_key']",
+            ["doc-14"],
+        ),
+    ],
+)
+def test_dangling_edges_in_deep_traversals(client, query, expected):
+    assert sorted(run_query(client, query)) == expected
 
 
 def test_subscription_traversal_directions_and_any(client):

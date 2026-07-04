@@ -171,11 +171,26 @@ into('node_collection')
 means:
 
 ```groovy
-otherV().hasLabel('node_collection')
+flatMap{...parse _to id from edge string; g.V(target)...}.hasLabel('node_collection')
 ```
 
 This split is important. It lets Opium users inspect edge documents before
 moving into connected vertices.
+
+For shallow `into(...)`, the compiler chooses the endpoint id from the edge
+direction that produced the current edge cursor, then looks that id up with
+`g.V(id)`:
+
+```text
+traverse_out(...).into(...) -> parse target id after `->`
+traverse_in(...).into(...)  -> parse source id before `-edgeLabel->`
+traverse_any(...).into(...) -> parse both ids and choose the one that is not
+                               the labeled current vertex
+```
+
+That keeps edge inspection broad while making endpoint materialization explicit.
+Dangling edge documents can still be returned by `traverse(...)`, but they do
+not produce vertex rows after `into(...)`.
 
 ## Direction
 
@@ -200,7 +215,7 @@ traverse_out('edge', max_depth=3).into('node')
 the compiler uses:
 
 ```groovy
-repeat(outE('edge').as('opium_edge').inV()).emit().times(3)
+repeat(outE('edge').as('opium_edge').flatMap{...g.V(target)...}).emit().times(3)
 ```
 
 When `into()` is present, the repeat body already moves to vertices, so emitted
@@ -215,7 +230,7 @@ traverse_out('edge', min_depth=2, max_depth=3)
 the compiler selects the labeled edge:
 
 ```groovy
-repeat(outE('edge').as('opium_edge').inV())
+repeat(outE('edge').as('opium_edge').flatMap{...g.V(target)...})
   .emit(loops().is(P.gte(2)))
   .times(3)
   .select('opium_edge')

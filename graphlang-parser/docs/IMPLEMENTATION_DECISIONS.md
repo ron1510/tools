@@ -210,13 +210,13 @@ Reason:
 - Opium projection should preserve one output row per input element.
 - Returning `null` makes result maps stable.
 
-## 11. Edge `_from` And `_to` Are Reconstructed
+## 11. Edge `_from` And `_to` Are Parsed From Provider Edge Strings
 
 The compiler uses:
 
 ```groovy
-__.outV().id()
-__.inV().id()
+__.map{...parse source endpoint id from edge string...}
+__.map{...parse target endpoint id from edge string...}
 ```
 
 for `_from` and `_to`.
@@ -225,7 +225,9 @@ Reason:
 
 - Your system policy guarantees edge documents have `_from` and `_to`.
 - The live provider did not expose `_from` and `_to` through `values(...)`.
-- Adjacent vertices preserve the same information for edge traversers.
+- Adjacent-vertex steps fail when an edge endpoint is dangling.
+- The provider edge string contains both endpoint ids, including missing
+  endpoint ids, so parsing it preserves edge document inspection semantics.
 
 Review point:
 
@@ -254,7 +256,7 @@ Then:
 becomes:
 
 ```groovy
-.otherV().hasLabel('roles')
+.flatMap{...parse target id; g.V(target)...}.hasLabel('roles')
 ```
 
 Reason:
@@ -262,6 +264,9 @@ Reason:
 - Opium `traverse(...)` returns edge documents.
 - `into(...)` is the operation that moves from those edges to vertices.
 - This lets queries project edge fields before calling `into`.
+- The compiler parses endpoint ids and looks them up with `g.V(id)` so dangling
+  edge documents can be inspected before vertex materialization skips missing
+  endpoints without provider errors.
 
 ## 13. Direction Mapping
 

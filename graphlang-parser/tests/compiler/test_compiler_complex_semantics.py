@@ -2,6 +2,7 @@ import pytest
 
 from opium_parser import compile_opium_to_gremlin
 from opium_parser.errors import InvalidOpiumSemanticError
+from tests.compiler.expected_gremlin import OUT_VERTEX_STEP
 
 
 def test_compile_complex_filter_traverse_unique_count():
@@ -23,7 +24,7 @@ def test_compile_complex_filter_traverse_unique_count():
         ".has('priority', P.gt(5))"
         ".has('score', P.gte(90.0d))"
         ".outE('permissions-data-product___role_abilities')"
-        ".otherV()"
+        f"{OUT_VERTEX_STEP}"
         ".hasLabel('permissions-data-product___abilities')"
         ".or("
         "__.hasId(TextP.endingWith('/write')), "
@@ -96,7 +97,7 @@ def test_compile_match_subquery_operand_expected_shape():
     assert compile_opium_to_gremlin(source) == (
         "g.V().hasLabel('users-data-product___user_roles')"
         ".filter(__.outE('permissions-data-product___role_abilities')"
-        ".otherV()"
+        f"{OUT_VERTEX_STEP}"
         ".hasLabel('permissions-data-product___abilities')"
         ".hasId(TextP.endingWith('/write')))"
     )
@@ -115,7 +116,7 @@ def test_compile_match_subquery_operand_value_in_expected_shape():
     assert compile_opium_to_gremlin(source) == (
         "g.V().hasLabel('users-data-product___user_roles')"
         ".filter(__.outE('permissions-data-product___role_abilities')"
-        ".otherV()"
+        f"{OUT_VERTEX_STEP}"
         ".hasLabel('permissions-data-product___abilities')"
         ".or("
         "__.hasId(TextP.endingWith('/read')), "
@@ -137,7 +138,8 @@ def test_compile_match_deep_traversal_operand_expected_shape():
     assert compile_opium_to_gremlin(source) == (
         "g.V().hasLabel('org-data-product___teams')"
         ".filter(__"
-        ".repeat(outE('org-data-product___team_hierarchy').as('opium_edge').inV())"
+        ".repeat(outE('org-data-product___team_hierarchy').as('opium_edge')"
+        f"{OUT_VERTEX_STEP})"
         ".emit()"
         ".times(2)"
         ".hasLabel('org-data-product___teams')"
@@ -158,7 +160,7 @@ def test_compile_match_traversal_count_at_least_three_expected_shape():
     assert compile_opium_to_gremlin(source) == (
         "g.V().hasLabel('users-data-product___user_roles')"
         ".filter(__.outE('permissions-data-product___role_abilities')"
-        ".otherV()"
+        f"{OUT_VERTEX_STEP}"
         ".hasLabel('permissions-data-product___abilities')"
         ".count()"
         ".is(P.gte(3)))"
@@ -179,7 +181,7 @@ def test_compile_match_unique_traversal_count_expected_shape():
     assert compile_opium_to_gremlin(source) == (
         "g.V().hasLabel('platform-data-product___services')"
         ".filter(__.outE('platform-data-product___service_dependencies')"
-        ".otherV()"
+        f"{OUT_VERTEX_STEP}"
         ".hasLabel('platform-data-product___services')"
         ".dedup()"
         ".count()"
@@ -201,7 +203,7 @@ def test_compile_match_function_style_traversal_count_expected_shape():
     assert compile_opium_to_gremlin(source) == (
         "g.V().hasLabel('users-data-product___user_roles')"
         ".filter(__.outE('permissions-data-product___role_abilities')"
-        ".otherV()"
+        f"{OUT_VERTEX_STEP}"
         ".hasLabel('permissions-data-product___abilities')"
         ".count()"
         ".is(P.gt(1)))"

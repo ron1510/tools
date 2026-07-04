@@ -2,6 +2,11 @@ import pytest
 
 from opium_parser import compile_opium_to_gremlin
 from opium_parser.errors import InvalidOpiumSemanticError
+from tests.compiler.expected_gremlin import (
+    ANY_VERTEX_STEP,
+    IN_VERTEX_STEP,
+    OUT_VERTEX_STEP,
+)
 
 
 def test_compile_as_var():
@@ -17,7 +22,8 @@ def test_compile_assign():
             "get('users').assign(traverse().into(), 'neighborhood')"
         )
         == "g.V().hasLabel('users')"
-        ".sideEffect(__.bothE().otherV().fold().as('neighborhood'))"
+        ".sideEffect(__.as('opium_current_vertex').bothE()"
+        f"{ANY_VERTEX_STEP}.fold().as('neighborhood'))"
     )
 
 
@@ -28,7 +34,7 @@ def test_compile_assign():
             "get('users')"
             ".assign(traverse_out('subs').into('roles')['_key'], 'neighbors')",
             "g.V().hasLabel('users')"
-            ".sideEffect(__.outE('subs').otherV().hasLabel('roles')"
+            f".sideEffect(__.outE('subs'){OUT_VERTEX_STEP}.hasLabel('roles')"
             ".id().map{it.get().substring(it.get().lastIndexOf('/') + 1)}"
             ".fold().as('neighbors'))",
         ),
@@ -44,9 +50,9 @@ def test_compile_assign():
             ".assign(traverse_in('subs').into('roles'), 'in_roles')"
             ".select('_key')",
             "g.V().hasLabel('users')"
-            ".sideEffect(__.outE('subs').otherV().hasLabel('roles')"
+            f".sideEffect(__.outE('subs'){OUT_VERTEX_STEP}.hasLabel('roles')"
             ".fold().as('out_roles'))"
-            ".sideEffect(__.inE('subs').otherV().hasLabel('roles')"
+            f".sideEffect(__.inE('subs'){IN_VERTEX_STEP}.hasLabel('roles')"
             ".fold().as('in_roles'))"
             ".project('_key')"
             ".by(__.id().map{it.get().substring(it.get().lastIndexOf('/') + 1)})",
@@ -64,7 +70,8 @@ def test_compile_select_columns_and_computed_var_projection():
             ".select('_key', neighbors=var('neighborhood')['_key'])"
         )
         == "g.V().hasLabel('users')"
-        ".sideEffect(__.bothE().otherV().fold().as('neighborhood'))"
+        ".sideEffect(__.as('opium_current_vertex').bothE()"
+        f"{ANY_VERTEX_STEP}.fold().as('neighborhood'))"
         ".project('_key', 'neighbors')"
         ".by(__.id().map{it.get().substring(it.get().lastIndexOf('/') + 1)})"
         ".by(select('neighborhood')"

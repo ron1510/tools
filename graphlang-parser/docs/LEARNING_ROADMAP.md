@@ -185,8 +185,8 @@ Practice queries:
 g.V().label().dedup()
 g.E().label().dedup()
 g.V().hasLabel('users-data-product___user_roles').count()
-g.V().hasLabel('users-data-product___user_roles').outE().otherV()
-g.E().project('_id','_from','_to').by(id()).by(outV().id()).by(inV().id())
+g.V().hasLabel('users-data-product___user_roles').outE().map{it.get().toString()}
+g.E().limit(3).map{it.get().toString()}
 ```
 
 Key question:
@@ -250,7 +250,8 @@ Why it matters here:
 - The compiler assumes COMPLEX mode.
 - `hasLabel(collection_name)` works only because the provider exposes
   collections as labels.
-- `_from` and `_to` are reconstructed through adjacent vertices in current code.
+- `_from`, `_to`, and `into(...)` use provider-specific edge-string parsing so
+  dangling endpoints do not break traversal.
 
 Read:
 

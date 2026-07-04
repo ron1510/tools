@@ -128,6 +128,8 @@ Seeded relationships:
 - `admin -> approve`
 - `editor -> write`
 - `viewer -> read`
+- `auditor -> missing ability` (dangling `_to`)
+- `missing role -> read` (dangling `_from`)
 - `alice -> platform`
 - `bob -> security`
 - `carol -> executive`
@@ -150,7 +152,7 @@ Current graph size:
 
 ```text
 73 vertices across 11 vertex collections
-118 edges across 13 edge collections
+130 edges across 13 edge collections
 ```
 
 ## Gremlin COMPLEX Config
@@ -253,6 +255,10 @@ The current e2e tests prove:
 - projected field access returns maps such as `{"_key": "admin"}`
 - deep traversal returns intermediate depths as defined in
   `docs/OPIUM_SEMANTICS.md`
+- dangling edge documents can be inspected as edge results, while `into(...)`
+  returns only materialized vertices
+- `_from` and `_to` projection preserves dangling endpoint ids by parsing the
+  provider edge string instead of using unsafe adjacent-vertex steps
 
 ## Known E2E Gaps
 

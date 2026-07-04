@@ -12,7 +12,7 @@ Current size:
 
 ```text
 73 vertices
-118 edges
+130 edges
 11 vertex collections
 13 edge collections
 ```
@@ -38,18 +38,18 @@ Current size:
 | Collection | Count | From | To | Purpose |
 | --- | ---: | --- | --- | --- |
 | `users-data-product.user_role_subscriptions` | 4 | roles | roles | same-collection role hierarchy |
-| `permissions-data-product.role_abilities` | 5 | roles | abilities | cross-collection traversal |
-| `org-data-product.user_memberships` | 5 | users | teams | user to team traversal |
+| `permissions-data-product.role_abilities` | 7 | roles | abilities | cross-collection traversal with dangling endpoints |
+| `org-data-product.user_memberships` | 7 | users | teams | user to team traversal with dangling endpoints |
 | `org-data-product.team_hierarchy` | 3 | teams | teams | deep hierarchy traversal |
 | `users-data-product.user_role_assignments` | 7 | users | roles | user role binding graph |
 | `org-data-product.department_memberships` | 7 | users | departments | user to department graph |
 | `delivery-data-product.department_projects` | 8 | departments | projects | department to project graph |
 | `platform-data-product.project_services` | 16 | projects | services | project to service fan-out |
-| `platform-data-product.service_dependencies` | 14 | services | services | service dependency graph |
+| `platform-data-product.service_dependencies` | 16 | services | services | service dependency graph with dangling endpoints |
 | `ops-data-product.incident_impacts` | 9 | incidents | services | reverse incident lookup |
-| `infra-data-product.service_regions` | 12 | services | regions | service to region lookup |
-| `infra-data-product.service_environments` | 14 | services | environments | service to environment lookup |
-| `knowledge-data-product.document_links` | 14 | documents | documents | deep document chain |
+| `infra-data-product.service_regions` | 14 | services | regions | service to region lookup with dangling endpoints |
+| `infra-data-product.service_environments` | 16 | services | environments | service to environment lookup with dangling endpoints |
+| `knowledge-data-product.document_links` | 16 | documents | documents | deep document chain with dangling endpoints |
 
 ## Why This Shape Exists
 
@@ -61,6 +61,7 @@ The graph intentionally includes:
 - fan-out relationships
 - reverse traversal cases
 - mixed endpoint labels
+- dangling edge endpoints
 - edge properties
 - explicit null fields
 - missing fields
@@ -89,6 +90,7 @@ The e2e suite covers:
 - outbound traversal
 - any-direction traversal
 - edge projection before `into()`
+- dangling edge inspection and safe `into()`
 - deep traversal
 - `skip`
 - `limit`

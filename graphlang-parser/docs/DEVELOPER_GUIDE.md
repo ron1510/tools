@@ -110,7 +110,7 @@ python -m pytest -q
 Expected current local status:
 
 ```text
-86 passed, 24 skipped
+262+ passed, skipped tests vary by whether live e2e is enabled
 ```
 
 The skipped tests are not ignored work. They are deliberate markers for
@@ -152,7 +152,7 @@ python -m pytest tests\e2e -q -rs
 Expected current live status:
 
 ```text
-20 passed, 2 skipped
+70 passed, 2 skipped
 ```
 
 ## How To Add A New Opium Keyword
@@ -255,8 +255,8 @@ The compiler assumes:
 - Edge resources are reached through edge traversal steps such as `outE(...)`.
 - Gremlin ids look like `collection/key`.
 - Opium `_key` is derived from the suffix after the final `/`.
-- `_from` and `_to` on edge traversers can be reconstructed using
-  `outV().id()` and `inV().id()`.
+- `_from` and `_to` on edge traversers are parsed from the provider edge string
+  because adjacent-vertex steps fail on dangling endpoints.
 
 These assumptions are live-tested. They are still provider-specific.
 

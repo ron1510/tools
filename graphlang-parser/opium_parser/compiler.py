@@ -20,6 +20,7 @@ creating wrong Gremlin.
 from __future__ import annotations
 
 import logging
+from typing import cast
 
 from opium_parser.ast_nodes import (
     CallExpr,
@@ -34,6 +35,7 @@ from opium_parser.compiler_common import (
     compile_key_filter,
     deep_repeat_body,
     direction,
+    endpoint_vertex_step,
     parse_depth_range,
     parse_empty_method_call,
     parse_flatten_depth,
@@ -50,6 +52,7 @@ from opium_parser.compiler_common import (
 from opium_parser.compiler_match import apply_match
 from opium_parser.compiler_projection import (
     compile_by_projection,
+    compile_edge_document_step,
     compile_projection_expr,
     compile_projection_step,
 )
@@ -58,8 +61,9 @@ from opium_parser.errors import (
     OpiumCompilerError,
     OpiumParserError,
     UnsupportedOpiumCompilationError,
+    error_context,
 )
-from opium_parser.gremlin_ir import GremlinTraversal
+from opium_parser.gremlin_ir import EdgeDirection, GremlinTraversal
 from opium_parser.gremlin_renderer import (
     quote_groovy,
     render_label_args,
@@ -224,7 +228,11 @@ def _compile_query(query: Query) -> GremlinGroovyString:
     `g.V().hasLabel('roles').outE('edges').otherV().hasLabel('roles')`
     """
 
-    return _compile_traversal(query.root, child=False).render()
+    traversal = _compile_traversal(query.root, child=False)
+    if traversal.cursor_kind == "edge":
+        traversal.add(compile_edge_document_step())
+        traversal.set_cursor("map")
+    return traversal.render()
 
 
 def _compile_traversal(expr: Expr, *, child: bool) -> GremlinTraversal:
@@ -254,6 +262,7 @@ def _compile_traversal(expr: Expr, *, child: bool) -> GremlinTraversal:
     if isinstance(expr, SubscriptExpr):
         traversal = _compile_traversal(expr.receiver, child=child)
         traversal.add(compile_projection_step(expr.field))
+        traversal.set_cursor("scalar")
         return traversal
 
     msg = f"Cannot compile {type(expr).__name__} as a Gremlin traversal"
@@ -283,7 +292,7 @@ def _compile_call(call: CallExpr, *, child: bool) -> GremlinTraversal:
                     actual="0",
                     context={"function": "get"},
                 )
-            traversal = GremlinTraversal("g.V()")
+            traversal = GremlinTraversal("g.V()", cursor_kind="vertex")
             traversal.add(f".hasLabel({render_resource_args(call)})")
             if "_key" in call.kwargs:
                 traversal.add(compile_key_filter(call.kwargs["_key"]))
@@ -302,7 +311,11 @@ def _compile_call(call: CallExpr, *, child: bool) -> GremlinTraversal:
             # Standalone `into()` starts from edges. In normal use it is chained
             # after `traverse`, but accepting it here keeps the compiler behavior
             # consistent with the parser's allowed top-level call names.
-            traversal = GremlinTraversal("__" if child else "g.E()")
+            traversal = GremlinTraversal(
+                "__" if child else "g.E()",
+                cursor_kind="edge",
+                edge_direction="any",
+            )
             _apply_into(traversal, call)
             return traversal
         case "var":
@@ -333,6 +346,7 @@ def _apply_method(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
         case "count":
             parse_empty_method_call(call)
             traversal.add(".count()")
+            traversal.set_cursor("scalar")
         case "unique":
             parse_empty_method_call(call)
             traversal.add(".dedup()")
@@ -355,6 +369,7 @@ def _apply_method(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
             subquery = parse_single_expr_arg(call, "array")
             child = _compile_traversal(subquery, child=True).render()
             traversal.add(f".local({child}).fold()")
+            traversal.set_cursor("list")
         case "flatten":
             # `flatten()` is represented as one `unfold()`. `flatten(depth=N)`
             # repeats `unfold()` N times. This is a simple Gremlin mapping, not
@@ -362,6 +377,8 @@ def _apply_method(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
             depth = parse_flatten_depth(call)
             parse_no_positional_args(call, "flatten")
             traversal.extend([".unfold()" for _ in range(depth)])
+            if depth > 0:
+                traversal.set_cursor("unknown")
         case "assign":
             _apply_assign(traversal, call)
         case "select":
@@ -388,14 +405,24 @@ def _apply_traverse(
         # returns vertices. The repeat body therefore labels each edge as
         # `opium_edge` before moving to the adjacent vertex.
         traversal.add(_compile_deep_traverse_step(call, into=False))
+        traversal.set_cursor(
+            "edge",
+            edge_direction=cast(EdgeDirection, str(traversal_direction)),
+        )
         return
 
     # Default traversal returns edges. `into()` is a separate Opium step that
     # converts those edges to the opposite endpoint vertex.
+    if str(traversal_direction) == "any":
+        traversal.add(".as('opium_current_vertex')")
     step = {"any": "bothE", "outbound": "outE", "inbound": "inE"}[
         str(traversal_direction)
     ]
     traversal.add(f".{step}({render_resource_args(call)})")
+    traversal.set_cursor(
+        "edge",
+        edge_direction=cast(EdgeDirection, str(traversal_direction)),
+    )
 
 
 def _apply_deep_traverse_into(
@@ -408,18 +435,29 @@ def _apply_deep_traverse_into(
     labels = string_args(into_call)
     if labels:
         traversal.add(f".hasLabel({render_resource_args(into_call)})")
+    traversal.set_cursor("vertex")
 
 
 def _apply_into(traversal: GremlinTraversal, call: CallExpr | MethodCallExpr) -> None:
     parse_supported_kwargs(call, set())
     labels = string_args(call)
-    # `otherV()` means "the vertex on the other side of the current edge".
-    # This matches Opium's edge-first traversal model better than compiling
-    # traversal directly as `out()`/`in()`, because callers can project edge
-    # documents before deciding to move into vertices.
-    traversal.add(".otherV()")
+    if traversal.cursor_kind != "edge":
+        msg = "into(...) requires the current traversal to contain edge documents"
+        raise InvalidOpiumSemanticError(
+            msg,
+            code="semantic.invalid_into_cursor",
+            expected=("edge cursor",),
+            actual=traversal.cursor_kind,
+            context=error_context(method="into"),
+        )
+    traversal.add(_vertex_step_for_edge_cursor(traversal))
     if labels:
         traversal.add(f".hasLabel({render_resource_args(call)})")
+    traversal.set_cursor("vertex")
+
+
+def _vertex_step_for_edge_cursor(traversal: GremlinTraversal) -> str:
+    return endpoint_vertex_step(traversal.edge_direction or "any")
 
 
 def _apply_assign(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
@@ -475,6 +513,7 @@ def _apply_select(traversal: GremlinTraversal, call: MethodCallExpr) -> None:
         traversal.add(f".by({compile_by_projection(column)})")
     for _name, expr in computed:
         traversal.add(f".by({compile_projection_expr(expr)})")
+    traversal.set_cursor("map")
 
 
 def _compile_condition_operand_traversal(expr: Expr) -> str:
@@ -510,7 +549,7 @@ def _deep_traverse_start(
 
 
 def _traversal_start(*, child: bool) -> GremlinTraversal:
-    return GremlinTraversal("__" if child else "g.V()")
+    return GremlinTraversal("__" if child else "g.V()", cursor_kind="vertex")
 
 
 def _has_non_default_depth(call: CallExpr | MethodCallExpr) -> bool:
