@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rest-cache.fullname" . }}-varnish
+  labels:
+    {{- include "rest-cache.labels" . | nindent 4 }}
+    app.kubernetes.io/component: varnish
+spec:
+  replicas: {{ .Values.varnish.replicaCount }}
+  revisionHistoryLimit: 5
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "rest-cache.varnishSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "rest-cache.varnishSelectorLabels" . | nindent 8 }}
+        {{- with .Values.varnish.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.varnish.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: {{ .Values.varnish.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.varnish.podSecurityContext | nindent 8 }}
+      containers:
+        - name: varnish
+          image: {{ include "rest-cache.image" . | quote }}
+          imagePullPolicy: {{ .Values.varnish.image.pullPolicy }}
+          ports:
+            - name: varnish
+              containerPort: 6081
+              protocol: TCP
+          args:
+            - "-F"
+            - "-f"
+            - "/etc/varnish/default.vcl"
+            - "-a"
+            - "0.0.0.0:6081"
+            - "-n"
+            - "/var/lib/varnish/cache"
+            - "-P"
+            - "/tmp/varnish.pid"
+            - "-s"
+            - "malloc,{{ .Values.varnish.storage.malloc }}"
+            {{- with .Values.varnish.argsExtra }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            {{- toYaml .Values.varnish.readinessProbe | nindent 12 }}
+          livenessProbe:
+            {{- toYaml .Values.varnish.livenessProbe | nindent 12 }}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+          securityContext:
+            {{- toYaml .Values.varnish.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.varnish.resources | nindent 12 }}
+          volumeMounts:
+            - name: varnish-vcl
+              mountPath: /etc/varnish/default.vcl
+              subPath: default.vcl
+              readOnly: true
+            - name: varnish-cache
+              mountPath: /var/lib/varnish
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: varnish-vcl
+          configMap:
+            name: {{ include "rest-cache.fullname" . }}-vcl
+        - name: varnish-cache
+          emptyDir:
+            sizeLimit: {{ .Values.varnish.storage.emptyDirSizeLimit | quote }}
+        - name: tmp
+          emptyDir:
+            sizeLimit: {{ .Values.varnish.storage.tmpSizeLimit | quote }}

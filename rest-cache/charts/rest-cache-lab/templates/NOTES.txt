@@ -1,0 +1,2 @@
+Lab backend service:
+  {{ include "rest-cache-lab.fullname" . }}:{{ .Values.service.port }}

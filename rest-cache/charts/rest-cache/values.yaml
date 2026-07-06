@@ -1,0 +1,91 @@
+# -- Override chart name fragments.
+nameOverride: ""
+fullnameOverride: ""
+
+# -- API prefix used by the generated VCL classifier.
+apiPrefix: "/api/v1"
+
+varnish:
+  replicaCount: 1
+  image:
+    repository: "varnish"
+    tag: "7.5.0"
+    pullPolicy: IfNotPresent
+  backend:
+    # -- Backend DNS name. Required.
+    host: ""
+    port: "8080"
+    connectTimeout: "2s"
+    firstByteTimeout: "30s"
+    betweenBytesTimeout: "10s"
+  service:
+    type: ClusterIP
+    port: 80
+  storage:
+    malloc: "256m"
+    emptyDirSizeLimit: "512Mi"
+    tmpSizeLimit: "64Mi"
+  ttl: "6h"
+  grace: "30s"
+  # -- Family-level cross-resource invalidation.
+  #
+  # "family" is the first path segment after apiPrefix:
+  #   /api/v1/users/123 -> family: users
+  #
+  # Varnish automatically tags cached GET objects with:
+  #   resource:<family>:<id> for /api/v1/<family>/<id>
+  #   collection:<family> for /api/v1/<family>, query variants, search, and family resources
+  #
+  # On mutation, the chart already bans the same family:
+  #   PUT /api/v1/users/123 -> resource:users:123 and collection:users
+  #   POST /api/v1/users     -> collection:users
+  #
+  # dependencyBans adds extra cross-family collection bans. Use it only when changing one family
+  # makes cached collection/list/search responses from another family stale.
+  #
+  # Do not put concrete ids here. This is dependency policy by resource family, not per URL.
+  # Example: mutating users also makes permissions lists/searches stale.
+  dependencyBans:
+    - family: "users"
+      collectionKeys:
+        - "collection:permissions"
+    - family: "resources"
+      collectionKeys:
+        - "collection:users"
+  # -- Optional full VCL override. When empty, the chart renders the built-in REST-aware VCL.
+  vclConfig: ""
+  argsExtra: []
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10000
+    runAsGroup: 10000
+    fsGroup: 10000
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
+  resources:
+    requests:
+      cpu: 500m
+      memory: 384Mi
+    limits:
+      memory: 512Mi
+  readinessProbe:
+    tcpSocket:
+      port: varnish
+    periodSeconds: 5
+    timeoutSeconds: 2
+    failureThreshold: 2
+  livenessProbe:
+    tcpSocket:
+      port: varnish
+    periodSeconds: 15
+    timeoutSeconds: 3
+    failureThreshold: 3
+  terminationGracePeriodSeconds: 45

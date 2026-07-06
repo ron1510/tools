@@ -1,0 +1,6 @@
+apiVersion: v2
+name: rest-cache
+description: Varnish Cache OSS chart for REST API caching with VCL-driven invalidation.
+type: application
+version: 0.1.0
+appVersion: "7.5.0"

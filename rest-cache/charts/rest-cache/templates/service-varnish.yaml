@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rest-cache.fullname" . }}
+  labels:
+    {{- include "rest-cache.labels" . | nindent 4 }}
+    app.kubernetes.io/component: varnish
+spec:
+  type: {{ .Values.varnish.service.type }}
+  selector:
+    {{- include "rest-cache.varnishSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: varnish
+      port: {{ .Values.varnish.service.port }}
+      targetPort: varnish
+      protocol: TCP

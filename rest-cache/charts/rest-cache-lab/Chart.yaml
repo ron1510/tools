@@ -1,0 +1,6 @@
+apiVersion: v2
+name: rest-cache-lab
+description: Lab backend chart for the Varnish REST cache sample.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

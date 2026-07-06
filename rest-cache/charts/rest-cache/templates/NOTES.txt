@@ -1,0 +1,10 @@
+Varnish REST cache is installed.
+
+Service:
+  {{ include "rest-cache.fullname" . }}:{{ .Values.varnish.service.port }}
+
+Port-forward for lab testing:
+  kubectl port-forward svc/{{ include "rest-cache.fullname" . }} 8080:{{ .Values.varnish.service.port }}
+
+Example request:
+  curl.exe -i http://127.0.0.1:8080{{ .Values.apiPrefix }}/resources/123
