@@ -172,29 +172,39 @@ Review point:
 - Suffix matching assumes ids are always `collection/key` and keys do not create
   ambiguous suffixes.
 
-## 9. Projection Returns Maps, Not Raw Scalars
+## 9. Result Shape Is Normalized To Plain Maps At Terminal Boundaries
 
-Opium:
+Unprojected terminal vertex results materialize as plain maps:
 
 ```python
-get('roles')['_key']
+get('roles')
 ```
 
 Current result shape:
 
 ```python
-[{"_key": "admin"}]
+[{"_key": "admin", "_id": "roles/admin", ...}]
 ```
 
 Reason:
 
-- You said the Python object should be returned as a key/value pair.
-- It aligns projection syntax with `select(...)`, which naturally returns maps.
-- Missing fields can be represented as explicit `None` values.
+- Callers serialize result rows into their own models, so provider-specific
+  Gremlin vertex/edge objects are not useful at the Opium boundary.
+- The compiler keeps intermediate traversal cursors as vertices or edges, then
+  materializes maps only when the complete query still ends on a vertex or edge
+  stream.
 
-Tradeoff:
+Projection remains scalar:
 
-- This differs from a raw scalar projection model such as `["admin"]`.
+```python
+get('roles')['_key']  # ["admin"]
+```
+
+`select(...)` remains a selected map:
+
+```python
+get('roles').select('_key')  # [{"_key": "admin"}]
+```
 
 ## 10. Missing Properties Project As Null
 
@@ -443,7 +453,6 @@ Reason:
 
 Skipped tests currently mark:
 
-- default full-document materialization
 - complex `assign/select`
 - unresolved complex array/flatten semantics
 
@@ -457,9 +466,7 @@ Reason:
 Before claiming complete Opium support, these need final decisions:
 
 1. Should root `get(edge_collection)` be supported for edge collections?
-2. Should default results materialize full documents, and with which system
-   fields?
-3. What is the exact row/variable scope of `array` and `assign`?
-4. What should computed `select` support beyond `var(...)` and field projection?
-5. When should the compiler move from Gremlin Groovy strings to Gremlin Python
+2. What is the exact row/variable scope of `array` and `assign`?
+3. What should computed `select` support beyond `var(...)` and field projection?
+4. When should the compiler move from Gremlin Groovy strings to Gremlin Python
    bytecode?

@@ -215,6 +215,35 @@ def test_terminal_labeled_traverse_returns_safe_edge_documents(client):
     assert by_key["bob-platform"]["_to"] == f"{TEAM}/platform"
 
 
+def test_terminal_into_returns_plain_vertex_documents(client):
+    rows = run_query(
+        client,
+        f"get('{USER}', _key='bob').traverse_out('{MEMBERSHIP}').into('{TEAM}')",
+    )
+
+    assert rows == [
+        {
+            "_key": "platform",
+            "_id": f"{TEAM}/platform",
+            "name": "Platform",
+            "tier": 2,
+            "active": True,
+        }
+    ]
+
+
+def test_terminal_dynamic_into_returns_plain_vertex_documents_without_dangling(client):
+    rows = run_query(client, f"get('{ROLE}', _key='auditor').traverse().into()")
+
+    by_key = {row["_key"]: row for row in rows}
+    assert set(by_key) == {"admin", "dave"}
+    assert by_key["admin"]["_id"] == f"{ROLE}/admin"
+    assert by_key["admin"]["name"] == "Admin"
+    assert by_key["dave"]["_id"] == f"{USER}/dave"
+    assert by_key["dave"]["name"] == "Dave Auditor"
+    assert "missing-ability" not in by_key
+
+
 def test_dangling_inbound_edge_can_be_inspected_but_not_materialized(client):
     assert sorted(
         run_query(
@@ -793,7 +822,6 @@ def test_large_graph_regions_environments_and_documents(client):
     assert run_query(client, doc_chain) == [4]
 
 
-@pytest.mark.skip(reason="Default full-document materialization is not implemented yet")
 def test_default_full_document_result_shape(client):
     rows = run_query(client, f"get('{ROLE}', _key='admin')")
     assert rows == [

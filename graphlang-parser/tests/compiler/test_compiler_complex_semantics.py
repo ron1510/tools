@@ -2,7 +2,7 @@ import pytest
 
 from opium_parser import compile_opium_to_gremlin
 from opium_parser.errors import InvalidOpiumSemanticError
-from tests.compiler.expected_gremlin import OUT_VERTEX_STEP
+from tests.compiler.expected_gremlin import OUT_VERTEX_STEP, VERTEX_DOCUMENT_STEP
 
 
 def test_compile_complex_filter_traverse_unique_count():
@@ -100,6 +100,7 @@ def test_compile_match_subquery_operand_expected_shape():
         f"{OUT_VERTEX_STEP}"
         ".hasLabel('permissions-data-product___abilities')"
         ".hasId(TextP.endingWith('/write')))"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -122,6 +123,7 @@ def test_compile_match_subquery_operand_value_in_expected_shape():
         "__.hasId(TextP.endingWith('/read')), "
         "__.hasId(TextP.endingWith('/approve'))"
         "))"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -144,6 +146,7 @@ def test_compile_match_deep_traversal_operand_expected_shape():
         ".times(2)"
         ".hasLabel('org-data-product___teams')"
         ".hasId(TextP.endingWith('/executive')))"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -164,6 +167,7 @@ def test_compile_match_traversal_count_at_least_three_expected_shape():
         ".hasLabel('permissions-data-product___abilities')"
         ".count()"
         ".is(P.gte(3)))"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -186,6 +190,7 @@ def test_compile_match_unique_traversal_count_expected_shape():
         ".dedup()"
         ".count()"
         ".is(P.gte(2)))"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -207,6 +212,7 @@ def test_compile_match_function_style_traversal_count_expected_shape():
         ".hasLabel('permissions-data-product___abilities')"
         ".count()"
         ".is(P.gt(1)))"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -221,6 +227,7 @@ def test_compile_match_var_operand_expected_shape():
         "g.V().hasLabel('users-data-product___user_roles')"
         ".as('role')"
         ".filter(__.select('role').hasId(TextP.endingWith('/admin')))"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -230,6 +237,7 @@ def test_compile_is_null_matches_missing_or_explicit_null_expected_shape():
     ) == (
         "g.V().hasLabel('users-data-product___user_roles')"
         ".or(__.not(__.has('nullable_field')), __.has('nullable_field', null))"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 

@@ -6,13 +6,14 @@ from tests.compiler.expected_gremlin import (
     ANY_VERTEX_STEP,
     IN_VERTEX_STEP,
     OUT_VERTEX_STEP,
+    VERTEX_DOCUMENT_STEP,
 )
 
 
 def test_compile_as_var():
     assert (
         compile_opium_to_gremlin("get('users').as_var('user')")
-        == "g.V().hasLabel('users').as('user')"
+        == "g.V().hasLabel('users').as('user')" f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -24,6 +25,7 @@ def test_compile_assign():
         == "g.V().hasLabel('users')"
         ".sideEffect(__.as('opium_current_vertex').bothE()"
         f"{ANY_VERTEX_STEP}.fold().as('neighborhood'))"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -36,7 +38,8 @@ def test_compile_assign():
             "g.V().hasLabel('users')"
             f".sideEffect(__.outE('subs'){OUT_VERTEX_STEP}.hasLabel('roles')"
             ".id().map{it.get().substring(it.get().lastIndexOf('/') + 1)}"
-            ".fold().as('neighbors'))",
+            ".fold().as('neighbors'))"
+            f"{VERTEX_DOCUMENT_STEP}",
         ),
         (
             "get('users').assign(traverse_in('subs'), 'incoming_edges').count()",

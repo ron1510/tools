@@ -42,6 +42,7 @@ Use this checklist during code review or design review.
 - Does deep traversal return intermediate depths as required?
 - Does traversal without `into()` return edges?
 - Does traversal with `into()` return vertices?
+- Do unprojected terminal vertices and edges materialize as plain maps?
 - Are null and missing fields tested against the live provider?
 
 ## E2E Review
@@ -70,7 +71,6 @@ Use this checklist during code review or design review.
 
 The current major gaps are:
 
-- default full-document materialization
 - complex `assign(...)`
 - complex `array(...)`
 - eventual Gremlin Python bytecode output
@@ -82,4 +82,3 @@ If a change claims to close one of these gaps, it should include:
 - compiler tests
 - e2e tests if backend behavior changes
 - updated skipped-test list
-

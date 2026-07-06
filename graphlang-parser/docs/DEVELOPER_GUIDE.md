@@ -255,6 +255,9 @@ The compiler assumes:
 - Edge resources are reached through edge traversal steps such as `outE(...)`.
 - Gremlin ids look like `collection/key`.
 - Opium `_key` is derived from the suffix after the final `/`.
+- Unprojected terminal vertices and edges are materialized as plain result maps
+  at the final compiler boundary, not while composing intermediate traversal
+  steps.
 - `_from` and `_to` on edge traversers are parsed from the provider edge string
   because adjacent-vertex steps fail on dangling endpoints.
 
@@ -264,7 +267,6 @@ These assumptions are live-tested. They are still provider-specific.
 
 The remaining high-value incomplete areas are:
 
-- default full-document materialization for unprojected result rows
 - exact complex `assign(...)` semantics
 - exact `array(...)` row scope and replacement/attachment behavior
 - eventual Gremlin Python bytecode output

@@ -9,6 +9,7 @@ from tests.compiler.expected_gremlin import (
     OUT_VERTEX_STEP,
     SOURCE_ID_STEP,
     TARGET_ID_STEP,
+    VERTEX_DOCUMENT_STEP,
 )
 
 
@@ -42,6 +43,7 @@ def test_compile_traverse_any_into():
         ".as('opium_current_vertex')"
         ".bothE()"
         f"{ANY_VERTEX_STEP}"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -51,6 +53,7 @@ def test_compile_traverse_edge_label_direction_and_into_label():
             "get('users').traverse('subs', direction='inbound').into('roles')"
         )
         == f"g.V().hasLabel('users').inE('subs'){IN_VERTEX_STEP}.hasLabel('roles')"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -58,6 +61,7 @@ def test_compile_traverse_sugar_out():
     assert (
         compile_opium_to_gremlin("get('users').traverse_out('subs').into()")
         == f"g.V().hasLabel('users').outE('subs'){OUT_VERTEX_STEP}"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -197,6 +201,7 @@ def test_compile_traverse_match_preserves_edge_cursor_for_into():
         ".has('weight', P.gt(1))"
         f"{OUT_VERTEX_STEP}"
         ".hasLabel('roles')"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 
@@ -221,6 +226,7 @@ def test_compile_deep_traverse_into():
         == "g.V().hasLabel('users')"
         f".repeat(outE('subs').as('opium_edge'){OUT_VERTEX_STEP})"
         ".emit().times(3)"
+        f"{VERTEX_DOCUMENT_STEP}"
     )
 
 

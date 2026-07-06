@@ -252,11 +252,16 @@ The current e2e tests prove:
 - `_id`, `_from`, and `_to` projection works for the currently tested shapes
 - `skip`, `limit`, `unique`, projection, `array`, and `flatten` work for simple
   tested shapes
-- projected field access returns maps such as `{"_key": "admin"}`
+- `select(...)` returns maps such as `{"_key": "admin"}`, while `['_key']`
+  returns scalar values such as `"admin"`
+- unprojected terminal vertex results return plain document maps with `_key`,
+  `_id`, and normal properties
 - deep traversal returns intermediate depths as defined in
   `docs/OPIUM_SEMANTICS.md`
 - dangling edge documents can be inspected as edge results, while `into(...)`
   returns only materialized vertices
+- unprojected terminal edge results return plain edge maps with `_key`, `_id`,
+  `_from`, `_to`, and normal edge properties, including dangling endpoint ids
 - `_from` and `_to` projection preserves dangling endpoint ids by parsing the
   provider edge string instead of using unsafe adjacent-vertex steps
 
@@ -265,7 +270,6 @@ The current e2e tests prove:
 The e2e tests do not yet prove:
 
 - complex `assign`/`select` semantics
-- default full-document materialization
 - behavior on large datasets
 - behavior if Gremlin Server disables Groovy closure execution
 - complex `_from`/`_to` use outside direct edge projections

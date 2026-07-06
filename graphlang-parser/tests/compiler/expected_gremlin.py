@@ -42,3 +42,16 @@ LOGICAL_ID_MAP = (
     "slash < 0 ? id.replace('___', '.') : "
     "id.substring(0, slash).replace('___', '.') + id.substring(slash)}"
 )
+
+VERTEX_DOCUMENT_STEP = (
+    ".map{def v=it.get(); "
+    "def id=v.id().toString(); "
+    "def logicalId=id.replace('___', '.'); "
+    "def slash=id.lastIndexOf('/'); "
+    "def key=slash < 0 ? id : id.substring(slash + 1); "
+    "def m=new LinkedHashMap(); "
+    "m['_key']=key; m['_id']=logicalId; "
+    "def ps=v.properties(); "
+    "while(ps.hasNext()){def p=ps.next(); m[p.key()]=p.value()}; "
+    "m}"
+)

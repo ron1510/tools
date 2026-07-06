@@ -32,6 +32,10 @@ What is proven:
   `unique().count()` numeric comparisons
 - `is_null(field)` now matches missing fields or explicit null values in the
   live provider test graph
+- unprojected terminal vertex results materialize as plain maps with `_key`,
+  `_id`, and document properties
+- unprojected terminal edge results materialize as plain maps with `_key`,
+  `_id`, `_from`, `_to`, and edge properties, including dangling endpoint ids
 
 What is not proven:
 
@@ -56,12 +60,18 @@ get('collection', _key='admin')
 Compilation:
 
 ```groovy
-g.V().hasLabel('collection')
-g.V().hasLabel('collection_a', 'collection_b')
-g.V().hasLabel('collection').hasId(TextP.endingWith('/admin'))
+g.V().hasLabel('collection').map{...}
+g.V().hasLabel('collection_a', 'collection_b').map{...}
+g.V().hasLabel('collection').hasId(TextP.endingWith('/admin')).map{...}
 ```
 
 Status: unit-tested and e2e-tested.
+
+Unprojected `get(...)` returns document maps:
+
+```python
+[{"_key": "admin", "_id": "users-data-product.user_roles/admin", ...}]
+```
 
 Subscript projection returns scalar values:
 
@@ -327,7 +337,6 @@ It is not ready to claim complete Opium compatibility.
 Before calling it production-ready, the main missing work is:
 
 1. define exact semantics for complex `array` and `assign`
-2. implement default full-document materialization
-3. decide when to move from Gremlin Groovy strings to Gremlin Python bytecode
-4. add more e2e cases for variable scoping and nested conditions
-5. run generated queries against representative real data volume
+2. decide when to move from Gremlin Groovy strings to Gremlin Python bytecode
+3. add more e2e cases for variable scoping and nested conditions
+4. run generated queries against representative real data volume

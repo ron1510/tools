@@ -59,6 +59,11 @@ get('users-data-product.user_roles')
 returns all user role documents with all available fields, as if all fields were
 selected.
 
+Terminal vertex results are plain maps containing `_key`, `_id`, and all normal
+document properties. Terminal edge results are plain maps containing `_key`,
+`_id`, `_from`, `_to`, and all normal edge properties. Provider-specific Gremlin
+vertex and edge objects are not part of the Opium result contract.
+
 Ordering is unspecified unless an explicit ordering operation is introduced.
 Tests and callers should not rely on result order unless the query explicitly
 asks for it.

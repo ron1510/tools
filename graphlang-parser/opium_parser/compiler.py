@@ -55,6 +55,7 @@ from opium_parser.compiler_projection import (
     compile_edge_document_step,
     compile_projection_expr,
     compile_projection_step,
+    compile_vertex_document_step,
 )
 from opium_parser.errors import (
     InvalidOpiumSemanticError,
@@ -231,6 +232,9 @@ def _compile_query(query: Query) -> GremlinGroovyString:
     traversal = _compile_traversal(query.root, child=False)
     if traversal.cursor_kind == "edge":
         traversal.add(compile_edge_document_step())
+        traversal.set_cursor("map")
+    elif traversal.cursor_kind == "vertex":
+        traversal.add(compile_vertex_document_step())
         traversal.set_cursor("map")
     return traversal.render()
 

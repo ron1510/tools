@@ -55,6 +55,21 @@ def compile_edge_document_step() -> str:
     )
 
 
+def compile_vertex_document_step() -> str:
+    return (
+        ".map{def v=it.get(); "
+        "def id=v.id().toString(); "
+        "def logicalId=id.replace('___', '.'); "
+        "def slash=id.lastIndexOf('/'); "
+        "def key=slash < 0 ? id : id.substring(slash + 1); "
+        "def m=new LinkedHashMap(); "
+        "m['_key']=key; m['_id']=logicalId; "
+        "def ps=v.properties(); "
+        "while(ps.hasNext()){def p=ps.next(); m[p.key()]=p.value()}; "
+        "m}"
+    )
+
+
 def compile_projection_step(field: str) -> str:
     field = str(parse_projection_field(field))
     # Opium `[]` projection returns scalar field values. This intentionally

@@ -9,6 +9,7 @@ from opium_parser.errors import (
     InvalidOpiumSemanticError,
     UnsupportedOpiumSyntaxError,
 )
+from tests.compiler.expected_gremlin import VERTEX_DOCUMENT_STEP
 
 
 def record_for(caplog: pytest.LogCaptureFixture, event: str) -> logging.LogRecord:
@@ -31,7 +32,7 @@ def test_parse_success_logs_source_ast_kind_and_duration(caplog):
 
 def test_source_compile_logs_once_without_nested_parser_success(caplog):
     source = "get('users').limit(2)"
-    expected = "g.V().hasLabel('users').limit(2)"
+    expected = "g.V().hasLabel('users').limit(2)" f"{VERTEX_DOCUMENT_STEP}"
     caplog.set_level(logging.INFO, logger="opium_parser")
 
     assert compile_opium_to_gremlin(source) == expected
@@ -59,7 +60,7 @@ def test_ast_compile_logs_without_source_text(caplog):
     compile_ast_to_gremlin(query)
 
     record = record_for(caplog, "opium.compile.succeeded")
-    assert record.gremlin_query == "g.V().hasLabel('users')"
+    assert record.gremlin_query == "g.V().hasLabel('users')" f"{VERTEX_DOCUMENT_STEP}"
     assert not hasattr(record, "opium_source")
     assert record.compile_duration_ms >= 0
     assert record.total_duration_ms >= 0

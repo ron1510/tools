@@ -42,7 +42,7 @@ print(query)
 Output:
 
 ```groovy
-g.V().hasLabel('users-data-product___user_roles').limit(100)
+g.V().hasLabel('users-data-product___user_roles').limit(100).map{...}
 ```
 
 Opium keeps dotted logical resource names. The compiler replaces each `.` with
@@ -55,11 +55,15 @@ get('users-data-product.user_roles')
 compiles to:
 
 ```groovy
-g.V().hasLabel('users-data-product___user_roles')
+g.V().hasLabel('users-data-product___user_roles').map{...}
 ```
 
 The sequence `___` is reserved and rejected in logical resource names. Projected
 `_id`, `_from`, and `_to` values are translated back to dotted logical prefixes.
+Unprojected terminal vertex results are materialized as plain maps containing
+`_key`, `_id`, and all normal document properties. Unprojected terminal edge
+results are materialized as plain maps containing `_key`, `_id`, `_from`, `_to`,
+and all normal edge properties.
 
 ## Supported Opium Subset
 
@@ -199,8 +203,7 @@ Current assumptions and limitations:
   edge-first traversal model
 - match operands based on current-row subqueries and row-scoped variables are
   supported for the tested projection/comparison shapes
-- complex `assign`, complex `array`, and default full-document materialization
-  still need semantic completion
+- complex `assign` and complex `array` still need semantic completion
 - Gremlin strings are rendered only; they are never executed by this package
 
 ## ArangoDB / Gremlin E2E Tests
