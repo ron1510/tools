@@ -27,6 +27,29 @@ helm upgrade --install rest-cache charts/rest-cache `
 
 For a real service, set `varnish.backend.host` and `varnish.backend.port` in chart values.
 
+## OpenShift Notes
+
+The chart is designed to let OpenShift restricted SCC assign the runtime UID/GID. By default it does
+not render `podSecurityContext` or container `securityContext` fields. Configure those later in your
+environment-specific values if your platform team requires explicit settings.
+
+Varnish listens on container port `6081`, not `80`:
+
+```text
+container: 0.0.0.0:6081
+service:   port 80 -> targetPort varnish -> 6081
+```
+
+This matters because OpenShift normally runs containers as non-root. Non-root processes cannot bind
+privileged ports below `1024`, so binding Varnish directly to `:80` can fail with:
+
+```text
+could not get socket :80 permission denied
+```
+
+Do not override Varnish args to `-a 0.0.0.0:80` unless you also deliberately grant the container
+the privileges needed to bind low ports.
+
 ## Existing Varnish Charts
 
 Varnish Software publishes an official Helm chart, but the current documentation describes it as

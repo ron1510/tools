@@ -81,9 +81,8 @@ Write-Step "Starting port-forward localhost:$LocalPort -> svc/rest-cache:80"
 if (Test-Path $PidPath) {
     $oldPid = Get-Content $PidPath -ErrorAction SilentlyContinue
     if ($oldPid -and (Get-Process -Id $oldPid -ErrorAction SilentlyContinue)) {
-        Write-Host "Existing port-forward is already running with PID $oldPid."
-        Write-Host "URL: http://127.0.0.1:$LocalPort"
-        exit 0
+        Write-Host "Stopping existing port-forward with PID $oldPid."
+        Stop-Process -Id $oldPid -Force
     }
 }
 

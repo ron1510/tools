@@ -31,8 +31,10 @@ spec:
     spec:
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ .Values.varnish.terminationGracePeriodSeconds }}
+      {{- with .Values.varnish.podSecurityContext }}
       securityContext:
-        {{- toYaml .Values.varnish.podSecurityContext | nindent 8 }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: varnish
           image: {{ include "rest-cache.image" . | quote }}
@@ -64,8 +66,10 @@ spec:
             preStop:
               exec:
                 command: ["sh", "-c", "sleep 5"]
+          {{- with .Values.varnish.securityContext }}
           securityContext:
-            {{- toYaml .Values.varnish.securityContext | nindent 12 }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           resources:
             {{- toYaml .Values.varnish.resources | nindent 12 }}
           volumeMounts:

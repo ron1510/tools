@@ -59,8 +59,7 @@ sub classify_rest_path {
 }
 
 sub invalidate_for_mutation {
-  if (req.method == "POST" &&
-  ) {
+  if (req.method == "POST" && req.http.X-Cache-Collection-Key) {
     ban("obj.http.X-Cache-Collection-Key == " + req.http.X-Cache-Collection-Key);
   }
 

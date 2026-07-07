@@ -12,19 +12,11 @@ service:
   type: ClusterIP
   port: 8080
 
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 10000
-  runAsGroup: 10000
-  seccompProfile:
-    type: RuntimeDefault
+# Empty by default so OpenShift restricted SCC can assign its own UID/GID.
+podSecurityContext: {}
 
-securityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  capabilities:
-    drop:
-      - ALL
+# Empty by default; configure it in your platform values if needed.
+securityContext: {}
 
 resources:
   requests:
