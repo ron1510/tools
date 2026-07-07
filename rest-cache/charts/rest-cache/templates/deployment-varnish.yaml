@@ -39,6 +39,8 @@ spec:
         - name: varnish
           image: {{ include "rest-cache.image" . | quote }}
           imagePullPolicy: {{ .Values.varnish.image.pullPolicy }}
+          command:
+            - "varnishd"
           ports:
             - name: varnish
               containerPort: 6081
